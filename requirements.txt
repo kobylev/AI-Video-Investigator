@@ -1,0 +1,7 @@
+open-clip-torch
+faiss-cpu
+google-generativeai
+pydantic
+pytest
+numpy
+pillow

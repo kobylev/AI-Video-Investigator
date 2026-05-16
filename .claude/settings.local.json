@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for i in {1..10})",
+      "Bash(do touch \"deliverables/wp$i/.gitkeep\")",
+      "Bash(done)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

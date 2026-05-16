@@ -1,0 +1,20 @@
+[project]
+name = "ai-video-investigator"
+version = "0.1.0"
+description = "Dual-agent semantic video retrieval for security and dashcam footage"
+authors = [{name = "Koby Lev"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "open-clip-torch",
+    "faiss-cpu",
+    "google-generativeai",
+    "pydantic",
+    "pytest",
+    "numpy",
+    "pillow",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
