@@ -590,6 +590,53 @@ Blended average latency:      ~905ms (0.7 × 110ms + 0.3 × 2,650ms)
 
 ## Quick Start
 
+## Setup & Usage
+
+### 1. Environment Setup
+We use a virtual environment to ensure reproducible results.
+
+**Windows:**
+```powershell
+# Create the environment (already done by the agent)
+# python -m venv venv
+
+# Activate the environment
+.\venv\Scripts\activate
+
+# Install dependencies (if not already installed)
+pip install -r requirements.txt
+```
+
+**macOS / Linux:**
+```bash
+# Create the environment
+# python3 -m venv venv
+
+# Activate the environment
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Running the Sanity Check
+To verify the CLIP model internals, run the following command to launch Jupyter:
+
+```powershell
+jupyter notebook notebooks/01_clip_sanity_check.ipynb
+```
+*Note: Ensure you select the **"Python (AI Video Inv)"** kernel from the top-right menu in Jupyter.*
+
+## Project Structure
+```text
+AI Video Investigator/
+├── docs/               # Technical strategy and WP reports
+├── notebooks/          # Sanity checks and research (01_clip_sanity_check.ipynb)
+├── src/                # Modular Python SDK (Retriever, Reasoner, Router)
+├── requirements.txt    # Project dependencies
+└── venv/               # Local virtual environment
+```
+
 ### Prerequisites
 
 - Python 3.9+
@@ -613,6 +660,7 @@ export GEMINI_API_KEY="your_api_key_here"
 # Run smoke test (validates CLIP, FAISS, Gemini connectivity)
 jupyter notebook notebooks/00_smoke_test.ipynb
 ```
+
 
 ### Running Your First Query (WP4+ Implementation)
 
