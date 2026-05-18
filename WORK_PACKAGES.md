@@ -6,8 +6,8 @@ This document tracks the progress of all 10 work packages for the AI Video Inves
 
 | WP # | Title | Status | Git Tag | Document Link |
 |------|-------|--------|---------|---------------|
-| WP1 | Planning & Preparatory Report | 🔄 In Progress | `v0.1.0-wp1` | [docs/work_packages/wp1_planning.md](docs/work_packages/wp1_planning.md) |
-| WP2 | Business Plan | ⏳ Not Started | `v0.2.0-wp2` | [docs/work_packages/wp2_business_plan.md](docs/work_packages/wp2_business_plan.md) |
+| WP1 | Planning & Preparatory Report | ✅ Completed | `v0.1.0-wp1` | [docs/work_packages/wp1_planning.md](docs/work_packages/wp1_planning.md) |
+| WP2 | Business Plan | ✅ Completed | `v0.2.0-wp2` | [docs/WP2_BUSINESS_PLAN.md](docs/WP2_BUSINESS_PLAN.md) |
 | WP3 | Data Acquisition & Benchmark Curation | ⏳ Not Started | `v0.3.0-wp3` | [docs/work_packages/wp3_data_acquisition.md](docs/work_packages/wp3_data_acquisition.md) |
 | WP4 | Retriever Implementation | ⏳ Not Started | `v0.4.0-wp4` | [docs/work_packages/wp4_retriever.md](docs/work_packages/wp4_retriever.md) |
 | WP5 | Reasoner & Router Integration | ⏳ Not Started | `v0.5.0-wp5` | [docs/work_packages/wp5_reasoner_router.md](docs/work_packages/wp5_reasoner_router.md) |

@@ -6,7 +6,11 @@
       "Bash(done)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "WebSearch",
+      "WebFetch(domain:proceedings.iclr.cc)",
+      "WebFetch(domain:openaccess.thecvf.com)",
+      "WebFetch(domain:arxiv.org)"
     ],
     "deny": [],
     "ask": []
