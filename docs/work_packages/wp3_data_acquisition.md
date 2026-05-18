@@ -1,21 +1,22 @@
 # WP3 — Data Acquisition & Benchmark Curation
 
-**Status:** ⏳ Not Started
-**Submission Date:** TBD
+**Status:** 🏗️ In Progress
+**Submission Date:** 2026-05-20
 **Git Tag:** `v0.3.0-wp3`
 
 ---
 
 ## Objectives
 
-_To be defined at the start of WP3_
+Detailed strategy and technical ID cards are maintained in: [docs/WP3_CORE_SDK_AND_EVALUATION.md](../WP3_CORE_SDK_AND_EVALUATION.md)
 
-- Acquire and prepare BDD100K dashcam dataset (≥10 hours of footage)
-- Curate benchmark with ≥100 natural-language queries spanning 5 event types
-- Annotate ground-truth frame ranges for binary relevance evaluation
-- Validate query diversity and event-type distribution
+- **Acquire UCF-Crime (Baseline):** Map ground-truth timestamps for anomaly categories (Theft, Burglary, etc.).
+- **Acquire HIVAU-70k (2025 Flagship):** Leverage hierarchical annotations for reasoning validation.
+- **Implement CLIP Engine:** Develop the Python SDK component for embedding generation and FAISS retrieval.
+- **Benchmarking Protocol:** Establish Recall@K and Confusion Matrix scripts for the evaluation harness.
 
 ---
 
 **Author:** Koby Lev
-**Last Updated:** 2026-05-16
+**Last Updated:** 2026-05-18
+
