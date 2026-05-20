@@ -34,7 +34,7 @@ Security operators and fleet-safety teams face cognitive overload at industrial 
 
 **AI Video Investigator** eliminates this trade-off through a **privacy-preserving dual-agent routing architecture**:
 
-1. **Local CLIP Filter (Edge):** A lightweight vision-language model runs on-premise, encoding video frames offline and performing millisecond semantic searches. This keeps 99% of raw footage (containing PII) within the corporate network, solving GDPR and CISO compliance barriers.
+1. **Local CLIP Filter & FAISS Indexing (Edge):** A high-performance vector search engine using `faiss-cpu`. Video frames are extracted at 1 FPS and encoded using CLIP ViT-L/14 once. The resulting embeddings are stored in a local FAISS index, enabling sub-millisecond semantic retrieval. This architecture ensures maximum data privacy—as vectors are stored locally—and provides near-instantaneous search results for subsequent queries.
 
 2. **Confidence-Gated Router:** Only frames exceeding a dynamically adjustable confidence threshold are escalated to the cloud, ensuring predictable operational costs aligned with predefined API budgets.
 
