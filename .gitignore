@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.mp4
+.env
 # C extensions
 *.so
 MyNotes.txt

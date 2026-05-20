@@ -3,6 +3,10 @@ import sys
 import os
 import torch
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+# 1. Environment Initialization
+load_dotenv() # Load .env before any SDK components are initialized
 
 # Add src to path to ensure clean imports
 sys.path.append(os.path.join(os.getcwd(), 'src'))
@@ -17,8 +21,8 @@ def main():
     parser = argparse.ArgumentParser(description="AI Video Investigator - WP3 SDK Entry Point")
     parser.add_argument("--video", type=str, required=True, help="Path to the video file to analyze.")
     parser.add_argument("--query", type=str, required=True, help="Semantic event query (e.g., 'man jumps over a fence').")
-    parser.add_argument("--tau_high", type=float, default=0.25, help="High confidence threshold (Match %).")
-    parser.add_argument("--tau_low", type=float, default=0.15, help="Low confidence threshold (Match %).")
+    parser.add_argument("--tau_high", type=float, default=0.80, help="High confidence threshold (Cosine Similarity).")
+    parser.add_argument("--tau_low", type=float, default=0.65, help="Low confidence threshold (Cosine Similarity).")
     parser.add_argument("--fps", type=float, default=1.0, help="Frames to extract per second.")
     args = parser.parse_args()
 
@@ -59,15 +63,18 @@ def main():
     
     text_emb = engine.get_text_embeddings(args.query)
     
-    # Compute Softmax Probabilities (Match %)
+    # Compute Raw Cosine Similarities (as requested for thresholds)
     similarities = (img_embs @ text_emb.T).squeeze(1)
-    logit_scale = engine.model.logit_scale.exp().item()
-    probs = torch.nn.functional.softmax(similarities * logit_scale, dim=0)
     
     # Package frame results
     ranked_frames = []
+    best_candidate = {"score": -1.0, "timestamp": 0}
+    
     for i, (img, ts) in enumerate(frames_data):
-        ranked_frames.append((img, ts, probs[i].item()))
+        score = similarities[i].item()
+        ranked_frames.append((img, ts, score))
+        if score > best_candidate["score"]:
+            best_candidate = {"score": score, "timestamp": ts}
 
     # 2. ROUTING PHASE (Budget-Aware Router)
     print(f"[*] Executing Confidence-Gated Routing (tau_high={args.tau_high}, tau_low={args.tau_low})...")
@@ -76,10 +83,32 @@ def main():
     
     print(f"[*] Router Outcome: {len(accepted)} High Match, {len(ambiguous)} Ambiguous, {len(frames_data)-len(accepted)-len(ambiguous)} Discarded")
 
-    # 3. REASONING PHASE (Gemini 1.5 Pro)
-    final_results = accepted
-    if ambiguous:
-        print(f"[*] Escalating {len(ambiguous)} ambiguous frames to Reasoner (Gemini 1.5 Pro)...")
+    # 3. REASONING PHASE (Gemini 1.5 Pro) with Short-Circuit Logic
+    final_results = []
+
+    # SHORT-CIRCUIT: If we have High Matches, accept them and SKIP Gemini entirely.
+    if accepted:
+        print(f"[*] SUCCESS: Found {len(accepted)} High-Confidence matches. Short-circuiting to output.")
+        final_results = accepted
+    
+    # ONLY invoke Reasoner if ZERO High Matches were found but we have Ambiguous candidates.
+    elif ambiguous:
+        # Pre-flight API key check
+        if not os.getenv("GEMINI_API_KEY"):
+            print("[!] CRITICAL ERROR: GEMINI_API_KEY not found in .env file.")
+            print("[*] Academic Requirement: Please create a .env file with GEMINI_API_KEY=your_key")
+            tracker.metrics.stop()
+            return
+
+        # SURGICAL ESCALATION: Always take only the top 2 candidates to stay within Free Tier limits
+        if len(ambiguous) > 2:
+            print(f"[*] INFO: {len(ambiguous)} frames are ambiguous. Capping at top 2 candidates for Reasoning.")
+        
+        # Sort by score descending and take top 2
+        ambiguous = sorted(ambiguous, key=lambda x: x['score'], reverse=True)[:2]
+
+        import time # Added for rate limiting
+        print(f"[*] INFO: Escalating {len(ambiguous)} candidates to Reasoner (Gemini 1.5 Pro)...")
         reasoner = GeminiReasoner()
         for item in tqdm(ambiguous, desc="Gemini Verification"):
             is_valid, response = reasoner.verify_event(item['frame'], args.query)
@@ -87,9 +116,12 @@ def main():
             if is_valid:
                 item['routing'] = "VERIFIED_BY_REASONER"
                 final_results.append(item)
-            else:
-                # Optional: log rejected frames for audit
-                pass
+            
+            # Rate Limit Buffer for Free Tier (Safety check)
+            time.sleep(3)
+
+    else:
+        print("[*] INFO: No candidates found in either High or Ambiguous bands.")
 
     # 4. OUTPUT & AUDIT
     tracker.metrics.stop()
@@ -99,12 +131,15 @@ def main():
     
     if not final_results:
         print("[!] SEARCH COMPLETE: No definitive matches found.")
+        bc_min = int(best_candidate['timestamp'] // 60)
+        bc_sec = int(best_candidate['timestamp'] % 60)
+        print(f"[*] Best candidate found at [{bc_min:02d}:{bc_sec:02d}] with score {best_candidate['score']:.4f}")
     else:
         # Sort by timestamp for chronological report
         for res in sorted(final_results, key=lambda x: x['timestamp']):
             minutes = int(res['timestamp'] // 60)
             seconds = int(res['timestamp'] % 60)
-            print(f"[{minutes:02d}:{seconds:02d}] - Match Probability: {res['score']*100:.1f}% | Method: {res['routing']}")
+            print(f"[{minutes:02d}:{seconds:02d}] - Confidence: {res['score']:.4f} | Method: {res['routing']}")
 
     print("\n" + "="*50)
     print("            PERFORMANCE AUDIT")

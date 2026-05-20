@@ -9,7 +9,7 @@ class BudgetAwareRouter:
     Gathers frames from Retriever and decides whether to accept, escalate, or discard.
     """
     
-    def __init__(self, tau_high: float = 0.85, tau_low: float = 0.65):
+    def __init__(self, tau_high: float = 0.80, tau_low: float = 0.65):
         """
         :param tau_high: Scores above this are accepted immediately.
         :param tau_low: Scores below this are discarded.

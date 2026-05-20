@@ -6,7 +6,7 @@ Pillow
 matplotlib
 ipykernel
 faiss-cpu
-google-generativeai
+google-genai
 python-dotenv
 pandas
 scikit-learn

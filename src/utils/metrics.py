@@ -32,8 +32,10 @@ class PerformanceTracker:
         self.metrics = ExecutionMetrics()
 
     def log_api_usage(self, response):
-        """Extracts token usage from Google Generative AI response."""
-        if hasattr(response, 'usage_metadata'):
-            self.metrics.input_tokens += response.usage_metadata.prompt_token_count
-            self.metrics.output_tokens += response.usage_metadata.candidates_token_count
+        """Extracts token usage from the new google-genai SDK response."""
+        # The new SDK structure uses usage_metadata or usage
+        usage = getattr(response, 'usage_metadata', None)
+        if usage:
+            self.metrics.input_tokens += getattr(usage, 'prompt_token_count', 0)
+            self.metrics.output_tokens += getattr(usage, 'candidates_token_count', 0)
         self.metrics.reasoner_invoked = True
