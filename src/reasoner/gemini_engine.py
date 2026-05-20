@@ -16,7 +16,7 @@ class GeminiReasoner:
             raise ValueError("GEMINI_API_KEY must be set.")
         
         self.client = genai.Client(api_key=api_key)
-        self.model_id = 'gemini-1.5-pro'
+        self.model_id = 'gemini-2.0-flash'
         
     def verify_event(self, frame: Image.Image, query: str) -> bool:
         """
@@ -36,7 +36,11 @@ class GeminiReasoner:
         """
         
         img_byte_arr = io.BytesIO()
-        frame.save(img_byte_arr, format='PNG')
+        # Resize to a reasonable forensic resolution (512px) to save token quota
+        # while maintaining enough detail for the Reasoner.
+        frame_copy = frame.copy()
+        frame_copy.thumbnail((512, 512))
+        frame_copy.save(img_byte_arr, format='PNG')
         img_bytes = img_byte_arr.getvalue()
         
         max_retries = 3
@@ -53,9 +57,16 @@ class GeminiReasoner:
                 return "TRUE" in result, response
                 
             except errors.ClientError as e:
+                # Catch the specific 403 Permission Denied error
+                if "403" in str(e):
+                    print(f"\n[!] CRITICAL ERROR: API Key Permission Denied (403).")
+                    print("[*] FIX: Go to https://aistudio.google.com/ and create a NEW API Key.")
+                    print("[*] Alternative: Enable 'Generative Language API' in Google Cloud Console.")
+                    return False, None
+
                 if "429" in str(e) and attempt < max_retries - 1:
                     print(f"\n[!] Rate limit hit. Waiting 60s before retry {attempt + 1}/{max_retries}...")
-                    time.sleep(60) # Wait a full minute for the quota bucket to refill
+                    time.sleep(60)
                     continue
                 raise e
 

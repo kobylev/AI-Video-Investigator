@@ -108,7 +108,7 @@ def main():
         ambiguous = sorted(ambiguous, key=lambda x: x['score'], reverse=True)[:2]
 
         import time # Added for rate limiting
-        print(f"[*] INFO: Escalating {len(ambiguous)} candidates to Reasoner (Gemini 1.5 Pro)...")
+        print(f"[*] INFO: Escalating {len(ambiguous)} candidates to Reasoner (Gemini 2.0 Flash)...")
         reasoner = GeminiReasoner()
         for item in tqdm(ambiguous, desc="Gemini Verification"):
             is_valid, response = reasoner.verify_event(item['frame'], args.query)
