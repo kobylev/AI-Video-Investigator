@@ -68,6 +68,27 @@ class CLIPEngine:
         similarity = (image_emb @ text_emb.T).item()
         return similarity
 
+    def get_frames_at_timestamps(self, video_path: str, timestamps: List[float]) -> List[Image.Image]:
+        """
+        Retrieves actual images for specific timestamps without re-processing the whole video.
+        Used for escalating FAISS results to the Reasoner.
+        """
+        import cv2
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frames = []
+        
+        for ts in timestamps:
+            frame_idx = int(ts * fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            if ret:
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frames.append(Image.fromarray(frame_rgb))
+        
+        cap.release()
+        return frames
+
 if __name__ == "__main__":
     # Smoke test logic
     engine = CLIPEngine()

@@ -32,10 +32,17 @@ class PerformanceTracker:
         self.metrics = ExecutionMetrics()
 
     def log_api_usage(self, response):
-        """Extracts token usage from the new google-genai SDK response."""
-        # The new SDK structure uses usage_metadata or usage
+        """Extracts token usage from Gemini or Claude responses."""
+        # 1. Handle Gemini (google-genai)
         usage = getattr(response, 'usage_metadata', None)
         if usage:
             self.metrics.input_tokens += getattr(usage, 'prompt_token_count', 0)
             self.metrics.output_tokens += getattr(usage, 'candidates_token_count', 0)
+        
+        # 2. Handle Claude (anthropic)
+        usage_claude = getattr(response, 'usage', None)
+        if usage_claude:
+            self.metrics.input_tokens += getattr(usage_claude, 'input_tokens', 0)
+            self.metrics.output_tokens += getattr(usage_claude, 'output_tokens', 0)
+            
         self.metrics.reasoner_invoked = True
