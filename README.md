@@ -4,7 +4,7 @@
 >
 > *Combining local CLIP filtering with cloud-based Gemini reasoning to achieve sub-3-second response times at <$0.10 per query-hour while maintaining GDPR compliance*
 
-**Status:** 🔄 WP1 — Planning | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid
+**Status:** ✅ WP4 — FAISS Indexing & Experiments | **Next:** WP5 | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid
 
 ---
 
@@ -39,6 +39,8 @@ Security operators and fleet-safety teams face cognitive overload at industrial 
 2. **Confidence-Gated Router:** Only frames exceeding a dynamically adjustable confidence threshold are escalated to the cloud, ensuring predictable operational costs aligned with predefined API budgets.
 
 3. **Gemini 1.5 Pro Reasoner (Cloud):** Deep multimodal reasoning is applied exclusively to pre-filtered, high-suspicion frames, enabling zero-shot detection of unprecedented threats via natural language queries.
+
+4. **FAISS-Backed Embedding Cache (Edge):** CLIP frame embeddings are persisted in a local `IndexFlatIP` (inner-product) FAISS index, eliminating redundant re-encoding across queries and delivering **sub-millisecond similarity search** over thousands of frames — converting a previously minutes-long retrieval into an interactive operation.
 
 **Target Performance:**
 - **Top-5 F1 ≥ 0.80** (accuracy surpassing CLIP-only baselines by +15 points)
