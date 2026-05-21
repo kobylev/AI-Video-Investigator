@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "mode": "clip_only",
+    "timestamp": "2026-05-21T19:37:27.739375",
+    "total_queries": 5
+  },
+  "retrieval_metrics": {
+    "recall_at_1": 0.7333333333333334,
+    "recall_at_5": 1.0,
+    "recall_at_10": 1.0,
+    "precision_at_5": 0.36,
+    "precision_at_10": 0.18,
+    "f1_at_5": 0.5,
+    "mrr": 1.0,
+    "ndcg_at_5": 0.0,
+    "ndcg_at_10": 0.0
+  },
+  "routing_metrics": {
+    "queries_on_prem_only": 5,
+    "queries_escalated": 0,
+    "avg_frames_escalated_per_query": 0.0
+  },
+  "privacy_metrics": {
+    "total_queries": 5,
+    "queries_resolved_on_prem": 5,
+    "fraction_queries_on_prem": 1.0,
+    "total_frames_in_corpus": 36000,
+    "frames_escalated_to_cloud": 0,
+    "fraction_frames_on_prem": 1.0
+  },
+  "cost_metrics": {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_estimated_cost_usd": 0.0,
+    "computed_cost_usd": 0.0,
+    "pricing": {
+      "input_tokens_per_1m": 1.0,
+      "output_tokens_per_1m": 5.0
+    }
+  },
+  "latency_metrics": {
+    "retriever": {
+      "mean_ms": 56.404972076416016,
+      "p95_ms": 65.52505493164062
+    },
+    "reasoner": {
+      "mean_ms": 0.0,
+      "p95_ms": 0.0
+    },
+    "total": {
+      "mean_ms": 56.404972076416016,
+      "p95_ms": 65.52505493164062
+    }
+  }
+}

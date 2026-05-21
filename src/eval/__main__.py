@@ -158,7 +158,15 @@ Examples:
     # Run benchmark
     try:
         evaluator = BenchmarkEvaluator(config)
-        aggregate = evaluator.run_benchmark()
+        # Note: In WP6 demo mode, we run without real component instances.
+        # These will be injected in WP7+ when real evaluation against live systems occurs.
+        aggregate = evaluator.run_benchmark(
+            retriever=None,  # Mock mode
+            router=None,
+            reasoner=None,
+            index=None,
+            corpus_size=36000,  # 10h @ 1fps
+        )
 
         logger.info("=" * 80)
         logger.info("BENCHMARK COMPLETE")

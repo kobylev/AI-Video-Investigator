@@ -134,16 +134,25 @@ class BenchmarkEvaluator:
 
         Args:
             queries: List of query dicts.
-            retriever: CLIP engine.
-            router: BudgetAwareRouter.
-            reasoner: Claude reasoner.
-            index: FAISS index.
+            retriever: CLIP engine (optional for mock mode).
+            router: BudgetAwareRouter (optional for mock mode).
+            reasoner: Claude reasoner (optional for mock mode).
+            index: FAISS index (optional for mock mode).
             corpus_size: Total frames.
 
         Returns:
             List of QueryResult objects.
         """
         logger.info("Starting dual-agent evaluation...")
+
+        # Mock router if not provided (demo/testing mode)
+        if router is None:
+            logger.info("Running in mock mode (no real router)")
+            class MockRouter:
+                tau_high = self.config.tau_high
+                tau_low = self.config.tau_low
+            router = MockRouter()
+
         results = []
 
         for query_dict in queries:

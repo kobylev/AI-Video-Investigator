@@ -1,0 +1,10 @@
+{
+  "seed": 42,
+  "tau_high": 0.32,
+  "tau_low": 0.24,
+  "max_escalations": 5,
+  "cost_per_image": 0.0003,
+  "queries_file": "evals/queries.example.jsonl",
+  "output_dir": "evals/results",
+  "mode": "clip_only"
+}
