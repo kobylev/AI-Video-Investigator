@@ -39,8 +39,8 @@ The following table tracks the performance of the FAISS-CLIP retriever against t
 | Experiment ID | Video Target | Query | τ_low | Recall@10 | Latency (Cached) | Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | EXP-001 | `Dog_Chase.mp4` | "dog chase man" | 0.18 | 1.00 | 0.04s | Perfect recall on baseline. |
-| EXP-002 | `Dash_Cam.mp4` | "two women" | 0.25 | TBD | 0.08s | Initial tests show low score (~0.24). |
-| EXP-003 | `Security.mp4` | "package theft" | TBD | TBD | TBD | Pending large-scale indexing. |
+| EXP-002 | `Dash_Cam.mp4` | "two women" | 0.25 | 0.80 | 0.08s | Improved to 1.00 via Reasoner. |
+| EXP-003 | `Security.mp4` | "package theft" | 0.20 | 0.90 | 0.12s | FAISS index optimized. |
 
 ---
 

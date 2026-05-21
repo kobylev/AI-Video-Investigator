@@ -8,14 +8,15 @@
 
 ## Objectives
 
-_To be defined at the start of WP7_
-
-- Implement Gemini-only baseline (all frames sent to Gemini for ranking)
-- Run full benchmark evaluation on all three systems (CLIP-only, Gemini-only, Dual-agent)
+- Implement **Claude-only baseline** (all frames sent to Claude Haiku 4.5 for ranking)
+- Run full benchmark evaluation on all three systems:
+    1. **CLIP-only** (Baseline)
+    2. **Claude-only** (Naive LLM Baseline)
+    3. **Dual-agent Cascade** (Proposed: CLIP + Claude)
 - Compare performance across all metrics (accuracy, cost, latency)
 - Generate cost-accuracy Pareto frontier plots
 
 ---
 
 **Author:** Koby Lev
-**Last Updated:** 2026-05-16
+**Last Updated:** 2026-05-21

@@ -8,14 +8,12 @@
 
 ## Objectives
 
-_To be defined at the start of WP9_
-
-- Write comprehensive final report (30–50 pages typical)
-- Include all sections: Abstract, Introduction, Related Work, Methodology, Results, Discussion, Conclusion
-- Integrate visualizations, tables, and ablation studies
-- Export to PDF and submit to deliverables/wp9/
+- Write comprehensive final report focusing on the Claude Haiku 4.5 reasoning engine.
+- Include all sections: Abstract, Introduction, Related Work, Methodology, Results, Discussion, Conclusion.
+- Integrate visualizations, tables, and ablation studies of the dual-agent cascade.
+- Export to PDF and submit to deliverables/wp9/.
 
 ---
 
 **Author:** Koby Lev
-**Last Updated:** 2026-05-16
+**Last Updated:** 2026-05-21

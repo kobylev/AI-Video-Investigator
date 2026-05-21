@@ -1,15 +1,8 @@
-"""AI Video Investigator — Dual-Agent Semantic Video Retrieval
-
-This package implements a hybrid retrieval-reasoning pipeline for semantic search
-over long-form security and dashcam footage.
-
+"""AI Video Investigator Source
 Modules:
-    retriever: CLIP encoder + FAISS index for fast semantic filtering
-    router: Confidence-gated escalation logic to minimize LLM calls
-    reasoner: Gemini 1.5 Pro API wrapper for deep multimodal reasoning
-    pipeline: End-to-end orchestration of retrieval → routing → reasoning
-    eval: Evaluation metrics (R@K, MRR, nDCG, F1, Accuracy)
+    retriever: CLIP-based frame extraction and FAISS indexing
+    router: Confidence-gated routing logic (Edge-to-Cloud)
+    reasoner: Claude Haiku 4.5 API wrapper for deep multimodal reasoning
+    pipeline: End-to-end orchestration of the Dual-Agent cascade
+    eval: Metrics and benchmarking harness
 """
-
-__version__ = "0.1.0"
-__author__ = "Koby Lev"

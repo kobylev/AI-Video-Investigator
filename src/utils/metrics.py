@@ -1,48 +1,33 @@
-import time
-from dataclasses import dataclass
+# Evaluation Metrics & Token Economics Tracker
 
-@dataclass
-class ExecutionMetrics:
-    """Audit log for academic defense: tracks latency and token costs."""
-    start_time: float = 0
-    end_time: float = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
-    reasoner_invoked: bool = False
+class TokenEconomics:
+    """
+    Tracks and auditors API spend across Dual-Agent retrieval pipeline.
+    Standardized on Anthropic Claude Haiku 4.5.
+    """
     
-    def start(self):
-        self.start_time = time.time()
-        
-    def stop(self):
-        self.end_time = time.time()
-        
+    # Updated pricing for Claude Haiku 4.5 (approximate)
+    PRICE_INPUT_1M = 1.00  # $1.00 / 1M input tokens
+    PRICE_OUTPUT_1M = 5.00 # $5.00 / 1M output tokens
+
+    def __init__(self):
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+
+    def log_usage(self, input_tokens: int, output_tokens: int):
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
+
     @property
-    def latency(self):
-        return self.end_time - self.start_time
-    
-    @property
-    def estimated_cost_usd(self):
-        # Pricing based on Gemini 1.5 Pro: $3.50/1M input, $10.50/1M output
-        input_cost = (self.input_tokens / 1_000_000) * 3.50
-        output_cost = (self.output_tokens / 1_000_000) * 10.50
+    def total_cost_usd(self) -> float:
+        input_cost = (self.total_input_tokens / 1_000_000) * self.PRICE_INPUT_1M
+        output_cost = (self.total_output_tokens / 1_000_000) * self.PRICE_OUTPUT_1M
         return input_cost + output_cost
 
-class PerformanceTracker:
-    def __init__(self):
-        self.metrics = ExecutionMetrics()
-
-    def log_api_usage(self, response):
-        """Extracts token usage from Gemini or Claude responses."""
-        # 1. Handle Gemini (google-genai)
-        usage = getattr(response, 'usage_metadata', None)
-        if usage:
-            self.metrics.input_tokens += getattr(usage, 'prompt_token_count', 0)
-            self.metrics.output_tokens += getattr(usage, 'candidates_token_count', 0)
-        
-        # 2. Handle Claude (anthropic)
-        usage_claude = getattr(response, 'usage', None)
-        if usage_claude:
-            self.metrics.input_tokens += getattr(usage_claude, 'input_tokens', 0)
-            self.metrics.output_tokens += getattr(usage_claude, 'output_tokens', 0)
-            
-        self.metrics.reasoner_invoked = True
+    def extract_usage(self, response):
+        """Extracts token usage from Anthropic response objects."""
+        if hasattr(response, 'usage'):
+            self.log_usage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens
+            )

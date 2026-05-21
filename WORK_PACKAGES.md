@@ -8,9 +8,9 @@ This document tracks the progress of all 10 work packages for the AI Video Inves
 |------|-------|--------|---------|---------------|
 | WP1 | Planning & Preparatory Report | ✅ Completed | `v0.1.0-wp1` | [docs/work_packages/wp1_planning.md](docs/work_packages/wp1_planning.md) |
 | WP2 | Business Plan | ✅ Completed | `v0.2.0-wp2` | [docs/WP2_BUSINESS_PLAN.md](docs/WP2_BUSINESS_PLAN.md) |
-| WP3 | Data Acquisition & Benchmark Curation | 🏗️ In Progress | `v0.3.0-wp3` | [docs/WP3_CORE_SDK_AND_EVALUATION.md](docs/WP3_CORE_SDK_AND_EVALUATION.md) |
+| WP3 | Data Acquisition & Benchmark Curation | ✅ Completed | `v0.3.0-wp3` | [docs/WP3_CORE_SDK_AND_EVALUATION.md](docs/WP3_CORE_SDK_AND_EVALUATION.md) |
 | WP4 | Retriever Implementation | ✅ Completed | `v0.4.0-wp4` | [docs/work_packages/wp4_retriever.md](docs/work_packages/wp4_retriever.md) |
-| WP5 | Reasoner & Router Integration | ⏳ Not Started | `v0.5.0-wp5` | [docs/work_packages/wp5_reasoner_router.md](docs/work_packages/wp5_reasoner_router.md) |
+| WP5 | Reasoner & Router Integration | ✅ Completed | `v0.5.0-wp5` | [docs/WP5_PROMPT_BOOK_AND_REASONER.md](docs/WP5_PROMPT_BOOK_AND_REASONER.md) |
 | WP6 | Evaluation Harness | ⏳ Not Started | `v0.6.0-wp6` | [docs/work_packages/wp6_eval_harness.md](docs/work_packages/wp6_eval_harness.md) |
 | WP7 | Baseline Comparisons | ⏳ Not Started | `v0.7.0-wp7` | [docs/work_packages/wp7_baselines.md](docs/work_packages/wp7_baselines.md) |
 | WP8 | Results Analysis | ⏳ Not Started | `v0.8.0-wp8` | [docs/work_packages/wp8_results.md](docs/work_packages/wp8_results.md) |

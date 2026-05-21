@@ -6,7 +6,6 @@ Pillow
 matplotlib
 ipykernel
 faiss-cpu
-google-genai
 anthropic
 python-dotenv
 pandas
