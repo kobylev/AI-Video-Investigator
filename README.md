@@ -6,6 +6,17 @@
 
 **Status:** ✅ WP6 — Evaluation Harness | **Next:** WP7 | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid
 
+### Project Milestones Accomplished
+
+| Work Package | Phase / Tier | Focus Area | Milestone Accomplished |
+| :--- | :--- | :--- | :--- |
+| **WP1** | Planning | Scaffolding & Setup | Formulated the core research question aligned with the VALID framework and established the initial repository architecture based on Galanopoulos et al. (CVPRW 2025). |
+| **WP2** | Planning | Business & Economics | Conducted market analysis (TAM/SAM/SOM) and developed a token-economics model to mathematically justify the cost-saving hybrid architecture over cloud-only models. |
+| **WP3** | Planning | Core SDK & Logic | Implemented the Single Entry Architecture (SDK Core) and designed the foundational routing logic and Prompt Book templates. |
+| **WP4** | Edge | FAISS Index & Filtering | Implemented the Stage 1 local semantic filter using CLIP (ViT-L/14) and a local FAISS vector database to secure data privacy and sub-millisecond retrieval. |
+| **WP5** | Cloud | Reasoner & Router Integration | Integrated the Stage 2 Cloud Reasoner via Anthropic's Claude Haiku 4.5 API, controlled by a dynamic confidence-gated router (τ_high, τ_low) and forced JSON tool-use. |
+| **WP6** | Evaluation | Harness & Benchmarks | Built and executed the end-to-end evaluator, confirming >80% on-premise data retention, sub-3-second response latency, and a >90% cost reduction. |
+
 ---
 
 ## 🚀 WP5 Update: Confidence-Gated Reasoning
