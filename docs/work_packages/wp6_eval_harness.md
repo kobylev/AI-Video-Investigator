@@ -26,6 +26,22 @@ compare. Privacy metrics are first-class outputs, not optional extras.
 
 ---
 
+## 1a. WP6 Evaluation Snapshot
+
+Latest benchmark modes were run on `evals/queries.example.jsonl` and summarized by the WP6 harness.
+
+| Mode | Recall@5 | F1@5 | Queries On-Prem | Cost / Query (USD) | Mean Total Latency (ms) |
+|---|---:|---:|---:|---:|---:|
+| clip_only | 0.587 | 0.460 | 100.0% | 0.0000 | 51.1 |
+| dual_agent | 0.587 | 0.460 | 80.0% | 0.0006 | 111.0 |
+| claude_only_stub\* | 0.742 | 0.627 | 0.0% | 0.0850 | 1500.0 |
+
+\* `claude_only_stub` is a simulated upper-bound baseline, not a production run.
+
+Presentation-ready charts are available in [`../../evals/results/charts/`](../../evals/results/charts/) and detailed benchmark usage is documented in [`../../evals/README.md`](../../evals/README.md).
+
+---
+
 ## 2. Public surface
 
 ```
