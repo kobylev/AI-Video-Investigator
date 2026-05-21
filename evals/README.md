@@ -35,6 +35,22 @@ results across `.json` files (timestamps differ).
 
 ---
 
+## WP6 Evaluation Snapshot
+
+Latest benchmark modes were run on `evals/queries.example.jsonl` and summarized by the WP6 harness.
+
+| Mode | Recall@5 | F1@5 | Queries On-Prem | Cost / Query (USD) | Mean Total Latency (ms) |
+|---|---:|---:|---:|---:|---:|
+| clip_only | 0.587 | 0.460 | 100.0% | 0.0000 | 51.1 |
+| dual_agent | 0.587 | 0.460 | 80.0% | 0.0006 | 111.0 |
+| claude_only_stub\* | 0.742 | 0.627 | 0.0% | 0.0850 | 1500.0 |
+
+\* `claude_only_stub` is a simulated upper-bound baseline, not a production run.
+
+Presentation-ready charts are available in [`results/charts/`](results/charts/); see [Generating presentation charts](#generating-presentation-charts) below to regenerate them.
+
+---
+
 ## Query file format
 
 JSONL — one query per line. Required fields are `query_id` and

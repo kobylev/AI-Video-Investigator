@@ -4,7 +4,7 @@
 >
 > *Combining local CLIP filtering with cloud-based Anthropic reasoning to achieve sub-3-second response times at <$0.10 per query-hour while maintaining GDPR compliance*
 
-**Status:** ✅ WP5 — Reasoner & Router Integration | **Next:** WP6 | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid
+**Status:** ✅ WP6 — Evaluation Harness | **Next:** WP7 | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid
 
 ---
 
@@ -13,6 +13,22 @@ The system now implements a sophisticated **Retrieve-then-Reason** cascade:
 *   **Confidence-Gated Routing:** The SDK automatically partitions results into High-Confidence (auto-accepted) and Ambiguous (escalated) bands based on τ_high and τ_low thresholds.
 *   **Claude Haiku 4.5 Verification:** Ambiguous frames are escalated to an Anthropic-powered reasoning agent that validates semantic truth via a forced tool-use protocol (JSON), ensuring 99.9%+ token efficiency.
 *   **Forensic Prompt Book:** Domain-specific prompts for Security and Dashcam events are now managed via the `PromptManager`.
+
+---
+
+## WP6 Evaluation Snapshot
+
+Latest benchmark modes were run on `evals/queries.example.jsonl` and summarized by the WP6 harness.
+
+| Mode | Recall@5 | F1@5 | Queries On-Prem | Cost / Query (USD) | Mean Total Latency (ms) |
+|---|---:|---:|---:|---:|---:|
+| clip_only | 0.587 | 0.460 | 100.0% | 0.0000 | 51.1 |
+| dual_agent | 0.587 | 0.460 | 80.0% | 0.0006 | 111.0 |
+| claude_only_stub\* | 0.742 | 0.627 | 0.0% | 0.0850 | 1500.0 |
+
+\* `claude_only_stub` is a simulated upper-bound baseline, not a production run.
+
+Presentation-ready charts are available in [`evals/results/charts/`](evals/results/charts/) and detailed benchmark usage is documented in [`evals/README.md`](evals/README.md).
 
 ---
 
