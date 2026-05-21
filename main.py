@@ -15,7 +15,7 @@ from retriever.video_processor import VideoProcessor
 from retriever.clip_engine import CLIPEngine
 from retriever.search_index import VectorSearchIndex
 from router.core import BudgetAwareRouter
-from reasoner.claude_engine import ClaudeReasoner
+from reasoner.claude_engine import ClaudeReasoner, ReasonerVerdict
 from utils.metrics import PerformanceTracker
 
 def main():
@@ -86,35 +86,64 @@ def main():
     if not ranked_candidates and search_results:
         best_candidate = {"score": search_results[0]['score'], "timestamp": search_results[0]['timestamp']}
 
-    # --- Phase 3: Routing & Reasoning ---
+    # --- Phase 3: Routing & Reasoning (WP5) ---
+    # Phase 3a - Confidence-Gated Router (WP3): the "cheap" gate. Never
+    # touches a paid API; inspects CLIP cosine scores and partitions
+    # candidates by threshold bands.
     router = BudgetAwareRouter(tau_high=args.tau_high, tau_low=args.tau_low)
     accepted, ambiguous = router.route_request(ranked_candidates)
-    
+
     print(f"[*] Router Outcome: {len(accepted)} High Match, {len(ambiguous)} Ambiguous")
 
-    final_results = []
+    # High-confidence CLIP matches always pass through the cascade unchanged.
+    final_results = list(accepted)
     if accepted:
         print(f"[*] SUCCESS: Found {len(accepted)} High-Confidence matches.")
-        final_results = accepted
-    elif ambiguous:
-        # Pre-flight API key check
+
+    # Phase 3b - Reasoner Escalation (WP5): Claude Haiku 4.5 is invoked ONLY
+    # for the AMBIGUOUS subset. Every frame discarded below tau_low and
+    # every frame accepted above tau_high is a Reasoner call we did NOT make.
+    if ambiguous:
         if not os.getenv("ANTHROPIC_API_KEY"):
             print("[!] CRITICAL ERROR: ANTHROPIC_API_KEY not found in .env file.")
-            print("[*] Academic Requirement: Please create a .env file with ANTHROPIC_API_KEY=your_key")
+            print("[*] Academic Requirement: add ANTHROPIC_API_KEY=<key> to .env.")
             tracker.metrics.stop()
             return
 
-        # SURGICAL ESCALATION: Always take only the top 2 candidates to stay within Free Tier limits
-        if len(ambiguous) > 2:
-            ambiguous = sorted(ambiguous, key=lambda x: x['score'], reverse=True)[:2]
-            
+        # Surgical escalation cap: bound API spend even if FAISS returns an
+        # unusually large ambiguous band. Rank by CLIP score so the most
+        # promising candidates are reasoned over first.
+        MAX_ESCALATIONS = 2
+        if len(ambiguous) > MAX_ESCALATIONS:
+            ambiguous = sorted(ambiguous, key=lambda x: x['score'], reverse=True)[:MAX_ESCALATIONS]
+
         print(f"[*] INFO: Escalating {len(ambiguous)} candidates to Reasoner (Claude Haiku 4.5)...")
-        reasoner = ClaudeReasoner()
+
+        try:
+            reasoner = ClaudeReasoner()
+        except ValueError as e:
+            print(f"[!] Reasoner initialization failed: {e}")
+            tracker.metrics.stop()
+            return
+
         for item in tqdm(ambiguous, desc="Verifying"):
-            is_valid, response = reasoner.verify_event(item['frame'], args.query)
-            tracker.log_api_usage(response)
-            if is_valid:
+            try:
+                verdict: ReasonerVerdict = reasoner.verify_event(item['frame'], args.query)
+            except RuntimeError as e:
+                # Retries exhausted or auth error - log and skip this
+                # candidate rather than abort the whole investigation.
+                print(f"\n[!] Reasoner failed on t={item['timestamp']:.2f}s: {e}")
+                continue
+            except Exception as e:
+                print(f"\n[!] Unexpected Reasoner error on t={item['timestamp']:.2f}s: {e}")
+                continue
+
+            tracker.log_api_usage(verdict.raw_response)
+
+            if verdict.is_verified:
                 item['routing'] = "VERIFIED_BY_REASONER"
+                item['reasoner_confidence'] = verdict.confidence_score
+                item['reasoner_reasoning'] = verdict.reasoning
                 final_results.append(item)
 
     # --- Phase 4: Report ---
@@ -137,6 +166,11 @@ def main():
             m = int(res['timestamp'] // 60)
             s = int(res['timestamp'] % 60)
             print(f"[{m:02d}:{s:02d}] - Confidence: {res['score']:.4f} | Method: {res['routing']}")
+            if res['routing'] == "VERIFIED_BY_REASONER":
+                # Surface Claude's forensic justification - the academic-defense
+                # artifact proving the verdict came from grounded visual reasoning.
+                print(f"          | Claude conf: {res['reasoner_confidence']:.2f} | "
+                      f"{res['reasoner_reasoning']}")
 
     print("\n" + "="*50)
     print("            PERFORMANCE AUDIT")

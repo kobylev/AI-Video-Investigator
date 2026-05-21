@@ -10,7 +10,13 @@
       "WebSearch",
       "WebFetch(domain:proceedings.iclr.cc)",
       "WebFetch(domain:openaccess.thecvf.com)",
-      "WebFetch(domain:arxiv.org)"
+      "WebFetch(domain:arxiv.org)",
+      "Bash(\"c:/Ai_Expert/AI Video Investigator/venv/Scripts/python.exe\" -c \"import google.generativeai as genai; print\\('google-generativeai OK:', genai.__version__ if hasattr\\(genai, '__version__'\\) else 'installed'\\)\")",
+      "Bash(\"c:/Ai_Expert/AI Video Investigator/venv/Scripts/python.exe\" -m py_compile \"c:/Ai_Expert/AI Video Investigator/src/reasoner/gemini_engine.py\" \"c:/Ai_Expert/AI Video Investigator/main.py\")",
+      "Bash(\"c:/Ai_Expert/AI Video Investigator/venv/Scripts/python.exe\" -c \"import anthropic; print\\('anthropic', anthropic.__version__\\)\")",
+      "PowerShell($errors = $null; [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors.Count -eq 0\\) { \"SYNTAX OK\" } else { $errors | ForEach-Object { $_.Message } })",
+      "PowerShell($errors = $null; [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors.Count -eq 0\\) { Write-Host \"SYNTAX OK\" } else { $errors | ForEach-Object { Write-Host $_.Message } })",
+      "PowerShell($errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors -and $errors.Count -gt 0\\) { $errors | ForEach-Object { Write-Host \"ERR: $\\($_.Message\\)\" } } else { Write-Host \"SYNTAX OK\" })"
     ],
     "deny": [],
     "ask": []
