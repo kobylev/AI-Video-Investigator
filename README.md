@@ -22,7 +22,7 @@
 
 ### Final Project Summary
 
-The project is now fully implemented, evaluated, and documented. The comprehensive final findings, technical architecture, and evaluation benchmarks are detailed in the [SUMMARY_REPORT.md](SUMMARY_REPORT.md).
+The project is now fully implemented, evaluated, and documented. The comprehensive final findings, technical architecture, and evaluation benchmarks are detailed in the [SUMMARY_REPORT.md](docs/SUMMARY_REPORT.md).
 
 ---
 
