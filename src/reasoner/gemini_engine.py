@@ -1,3 +1,7 @@
+"""
+[DEPRECATED] Initial implementation using Google Gemini.
+Standardized Reasoning Agent is now Anthropic Claude Haiku 4.5 (see src/reasoner/claude_engine.py).
+"""
 import os
 import json
 import logging
@@ -12,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 class GeminiReasoner:
     """
-    Scalable Wrapper for Gemini 1.5 Pro.
-    Handles multimodal inference with structured output enforcement.
+    Scalable Wrapper for Gemini 1.5 Pro. (Historical Reference Only)
     """
 
     def __init__(
