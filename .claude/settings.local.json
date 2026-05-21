@@ -16,7 +16,13 @@
       "Bash(\"c:/Ai_Expert/AI Video Investigator/venv/Scripts/python.exe\" -c \"import anthropic; print\\('anthropic', anthropic.__version__\\)\")",
       "PowerShell($errors = $null; [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors.Count -eq 0\\) { \"SYNTAX OK\" } else { $errors | ForEach-Object { $_.Message } })",
       "PowerShell($errors = $null; [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors.Count -eq 0\\) { Write-Host \"SYNTAX OK\" } else { $errors | ForEach-Object { Write-Host $_.Message } })",
-      "PowerShell($errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors -and $errors.Count -gt 0\\) { $errors | ForEach-Object { Write-Host \"ERR: $\\($_.Message\\)\" } } else { Write-Host \"SYNTAX OK\" })"
+      "PowerShell($errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\scripts\\\\test_wp5.ps1\", [ref]$null, [ref]$errors\\); if \\($errors -and $errors.Count -gt 0\\) { $errors | ForEach-Object { Write-Host \"ERR: $\\($_.Message\\)\" } } else { Write-Host \"SYNTAX OK\" })",
+      "Bash(python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode dual_agent --seed 42 --output-dir evals/results --corpus-size 36000)",
+      "Bash(python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode clip_only --seed 42 --output-dir evals/results --corpus-size 36000)",
+      "Bash(python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode claude_only_stub --seed 42 --output-dir evals/results --corpus-size 36000)",
+      "Bash(python -m pytest tests/eval/ -v)",
+      "Bash(python -c \"import csv; r = list\\(csv.DictReader\\(open\\('evals/results/queries_dual_agent_20260521_202701.csv', encoding='utf-8'\\)\\)\\); print\\('rows:', len\\(r\\)\\); print\\('cols:', list\\(r[0].keys\\(\\)\\)\\); print\\('sample row:'\\); [print\\(' ', k, '=', v\\) for k,v in r[0].items\\(\\)]\")",
+      "Bash(python -m pytest tests/eval/ -q)"
     ],
     "deny": [],
     "ask": []

@@ -1,529 +1,353 @@
 # WP6 — Evaluation Harness
 
-**Status:** ✅ Complete
-**Submission Date:** 2026-05-21
-**Git Tag:** `v0.6.0-wp6`
+**Status:** Implemented. Stand-in components mean reported numbers are
+illustrative until WP7 wires the harness to live CLIP / Router / Claude
+instances and a real annotated corpus.
+
+**Last revised:** 2026-05-21
 
 ---
 
-## Objectives
+## 1. Objective
 
-✅ Implement evaluation metrics (Recall@K, Precision@K, F1, MRR, nDCG)
-✅ Build automated evaluation pipeline for benchmark queries
-✅ Measure end-to-end system performance (CLIP + Claude Haiku 4.5 cascade)
-✅ Log latency (mean, p95) and token cost per query
-✅ Prioritize privacy metrics alongside accuracy
-✅ Support three evaluation modes (clip_only, dual_agent, claude_only_stub)
-✅ Save reproducible results in JSON/CSV for WP7 baseline comparisons
+Build a reproducible evaluation framework that measures the
+production pipeline (CLIP retriever → BudgetAwareRouter → Claude Haiku 4.5
+reasoner) along five orthogonal dimensions:
 
----
+1. **Retrieval quality** — Recall@K, Precision@K, F1@5, MRR, nDCG@K.
+2. **Routing behaviour** — decision-count breakdown, frames escalated.
+3. **Privacy preservation** — fraction of queries / frames kept on-prem.
+4. **Latency** — retriever, router, reasoner, end-to-end (mean + p95).
+5. **Cloud cost** — token usage and estimated USD against Claude Haiku 4.5 list pricing.
 
-## Architecture
-
-### Evaluation Modes
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ WP6 Evaluation Harness — Three Evaluation Modes                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│ [1] clip_only                                                    │
-│     CLIP retriever only, no reasoning or routing                │
-│     Baseline for measuring CLIP performance ceiling             │
-│     Expected: High latency (no filtering), zero cost            │
-│                                                                  │
-│ [2] dual_agent (MAIN SYSTEM)                                    │
-│     CLIP → Router (τ_high=0.32, τ_low=0.24) → Claude Haiku     │
-│     Confidence-gated escalation with token-cost optimization    │
-│     Expected: Balanced accuracy, low cost, ~99% on-prem        │
-│                                                                  │
-│ [3] claude_only_stub                                            │
-│     Naive baseline: All frames to Claude (placeholder)          │
-│     Upgraded in WP7 with real multi-frame processing           │
-│     Expected: Highest accuracy, prohibitive cost                │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-```
-Query → CLIP Encoding → FAISS Search → Router Decision
-           ↓               ↓              ↓
-      [tracked]      [Top-K scores]  [Action]
-           ↓               ↓              ↓
-     clip_latency    clip_top_scores  IMMEDIATE_MATCH
-           ms              @1,5,10      ESCALATED
-                                        DROPPED
-                           ↓
-                       [Stage 2: Claude]
-                       (if escalated)
-                           ↓
-                     reasoner_latency
-                     input_tokens
-                     output_tokens
-                           ↓
-                       QueryResult
-                       (aggregated into
-                        AggregateMetrics)
-```
+The harness is mode-pluggable so the same machinery scores the
+`clip_only`, `dual_agent`, and `claude_only_stub` baselines that WP7 will
+compare. Privacy metrics are first-class outputs, not optional extras.
 
 ---
 
-## Core Components
+## 2. Public surface
 
-### 1. Data Models (`src/eval/models.py`)
+```
+src/eval/
+├── __init__.py          # Re-exports the public API.
+├── __main__.py          # Allows `python -m src.eval`.
+├── models.py            # Dataclasses (EvaluationSample, QueryResult, AggregateMetrics, …).
+├── metrics.py           # Pure functions (recall_at_k, ndcg_at_k, percentile, …).
+├── io.py                # JSONL loading + JSON/CSV result writing.
+├── modes.py             # Per-mode adapters (clip_only / dual_agent / claude_only_stub).
+├── harness.py           # BenchmarkRunner orchestration + aggregation.
+└── run_benchmark.py     # CLI entry point.
+```
 
-**`EvaluationConfig`** — Reproducible run configuration
+`BenchmarkRunner(config).run()` is the single library entry point.
+`python -m src.eval.run_benchmark …` is the CLI. Both call into the same
+`main()`.
+
+### Dataclasses
+
+| Class | Role |
+| --- | --- |
+| `EvaluationSample` | A row from the JSONL benchmark. Frozen. Owns `relevant_indices`, `total_relevant`, `event_type`. |
+| `EvaluationConfig` | Reproducible run configuration. Persisted alongside every result set. |
+| `QueryResult` | Full per-query record — final ranking, stage latencies, router decision, token usage, ground truth pinned in for self-describing output. |
+| `RetrievalMetrics` | Mean R@K / P@K / F1 / MRR / nDCG across all queries. |
+| `RoutingMetrics` | Counts of `IMMEDIATE_MATCH`, `ESCALATED`, `DROPPED`, `CLIP_ONLY`, `CLAUDE_ONLY`, plus average frames escalated. |
+| `PrivacyMetrics` | Queries on-prem, unique frames escalated, fraction frames on-prem. Caps `unique_frames_escalated` at `corpus_size` so the fraction never goes negative. |
+| `CostMetrics` | Input/output tokens, recorded USD, recomputed USD as a sanity check. |
+| `LatencyMetrics` | Mean and p95 for retriever / router / reasoner / total. |
+| `AggregateMetrics` | Top-level container; the shape of `aggregate_<mode>_<ts>.json`. |
+
+### Metric functions (pure, deterministic, unit-tested)
+
 ```python
-@dataclass
-class EvaluationConfig:
-    seed: int = 42
-    tau_high: float = 0.32
-    tau_low: float = 0.24
-    max_escalations: int = 5
-    cost_per_image: float = 0.0003
-    queries_file: str = "evals/queries.example.jsonl"
-    output_dir: str = "evals/results"
-    mode: str = "dual_agent"  # "clip_only", "dual_agent", "claude_only_stub"
+from src.eval import metrics as M
+M.recall_at_k(relevant_set, ranked_indices, k, total_relevant=0)
+M.precision_at_k(relevant_set, ranked_indices, k)
+M.f1_at_k(relevant_set, ranked_indices, k, total_relevant=0)
+M.reciprocal_rank(relevant_set, ranked_indices)
+M.ndcg_at_k(relevant_set, ranked_indices, k)
+M.percentile(values, pct)
+M.mean(values)
+M.aggregate_retrieval(per_query_metrics)
 ```
 
-**`QueryResult`** — Per-query metrics
-- Input: query_id, query_text, event_type, expected_relevance_notes
-- CLIP stage: clip_latency_ms, clip_top_1_score, clip_top_5_scores
-- Router: router_decision, frames_escalated, estimated_cost_usd
-- Claude stage: reasoner_latency_ms, input_tokens, output_tokens
-- Total: total_latency_ms
+All eight live in [src/eval/metrics.py](../../src/eval/metrics.py) and
+have line-level test coverage in
+[tests/eval/test_metrics.py](../../tests/eval/test_metrics.py).
 
-**`PrivacyMetrics`** — Aggregated privacy preservation
+---
+
+## 3. Modes
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ clip_only                                                        │
+│   Retriever only. No router, no Claude. 100% on-prem, $0 cost.  │
+│   Sets the floor for retrieval quality.                         │
+│                                                                  │
+│ dual_agent  (production system)                                  │
+│   CLIP → BudgetAwareRouter(τ_high=0.32, τ_low=0.24) → Claude.   │
+│   IMMEDIATE_MATCH: top-1 score ≥ τ_high — surface CLIP order.   │
+│   ESCALATED:       τ_low ≤ top-1 < τ_high — Claude re-ranks.   │
+│   DROPPED:         top-1 < τ_low — nothing returned.            │
+│                                                                  │
+│ claude_only_stub  (naive baseline, placeholder for WP7)         │
+│   Conceptually ships the entire corpus to Claude per query.     │
+│   Idealised ranking → highest quality ceiling, $0.08/query,     │
+│   0% on-prem. Motivates the cascade.                            │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Mode dispatch lives in [src/eval/harness.py](../../src/eval/harness.py)
+`BenchmarkRunner._execute_one`. The mode adapters in `modes.py` accept
+optional `retriever` / `router` / `reasoner` components — when `None`,
+deterministic stand-ins keyed by the run seed take over so the harness
+runs in CI without GPUs or API keys. WP7 will pass real instances:
+
 ```python
-@dataclass
-class PrivacyMetrics:
-    total_queries: int
-    queries_resolved_on_prem: int
-    fraction_queries_on_prem: float  # % with zero cloud escalation
-    total_frames_in_corpus: int
-    frames_escalated_to_cloud: int
-    fraction_frames_on_prem: float  # % of frames never sent to cloud
-```
+from src.retriever.clip_engine import CLIPEngine
+from src.router.core import BudgetAwareRouter
+from src.reasoner.claude_engine import ClaudeReasoner
 
-**`CostMetrics`** — Aggregated token economics
-```python
-@dataclass
-class CostMetrics:
-    total_input_tokens: int
-    total_output_tokens: int
-    total_estimated_cost_usd: float
-    computed_cost_usd: float  # Validation: recomputed from tokens
-```
-
-**`LatencyMetrics`** — Aggregated latency statistics
-- retriever: mean_ms, p95_ms
-- reasoner: mean_ms, p95_ms (Claude)
-- total: mean_ms, p95_ms
-
-**`AggregateMetrics`** — Complete benchmark results
-- Retrieval: R@1, R@5, R@10, P@5, P@10, F1@5, MRR, nDCG@5, nDCG@10
-- Routing: queries_on_prem_only, queries_escalated, avg_frames_escalated
-- Privacy: (PrivacyMetrics object)
-- Cost: (CostMetrics object)
-- Latency: (LatencyMetrics object)
-
-### 2. Metric Functions (`src/eval/metrics.py`)
-
-**Retrieval Metrics (Pure Functions)**
-- `recall_at_k(relevant_ranks, k)` — Fraction of relevant items in top-K
-- `precision_at_k(relevant_ranks, k)` — Fraction of top-K that are relevant
-- `f1_at_k(relevant_ranks, k)` — Harmonic mean of precision and recall
-- `mean_reciprocal_rank(relevant_ranks)` — 1 / rank of first relevant item
-- `ndcg_at_k(scores, relevance_labels, k)` — Normalized Discounted Cumulative Gain
-
-**Privacy Metrics (Pure Functions)**
-- `fraction_queries_on_prem(query_results, corpus_size)` — % queries with zero escalation
-- `fraction_frames_on_prem(query_results, corpus_size)` — % frames never sent to cloud
-
-**Aggregation Helpers (Pure Functions)**
-- `aggregate_retrieval_metrics(query_results, k_values)` — Mean metrics across queries
-- `aggregate_latency_metrics(query_results)` — Mean and p95 latencies
-- `aggregate_cost_metrics(query_results, prices)` — Total tokens and cost
-
-### 3. Benchmark Executor (`src/eval/harness.py`)
-
-**`BenchmarkEvaluator`** — Orchestrates benchmark execution
-```python
-class BenchmarkEvaluator:
-    def evaluate_clip_only(queries, retriever, index) → List[QueryResult]
-    def evaluate_dual_agent(queries, retriever, router, reasoner, index) → List[QueryResult]
-    def evaluate_claude_only_stub(queries) → List[QueryResult]
-    def run_benchmark(retriever, router, reasoner, index) → AggregateMetrics
-```
-
-Methods:
-- `load_queries_from_jsonl(path)` — Load benchmark queries
-- `run_benchmark(...)` — Execute benchmark in configured mode
-- `_aggregate_results(corpus_size, num_queries)` → AggregateMetrics
-- `_save_results(aggregate)` → JSON + CSV outputs
-
-### 4. CLI Entry Point (`src/eval/__main__.py`)
-
-```bash
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent
-python -m src.eval --config config.json --mode clip_only
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent \
-  --tau-high 0.35 --tau-low 0.25 --seed 123 --output-dir evals/results
-```
-
-Options:
-```
---queries FILE              Path to JSONL queries file
---mode {clip_only, dual_agent, claude_only_stub}  Evaluation mode
---config FILE              Path to JSON config file
---output-dir DIR           Output directory for results (default: evals/results)
---seed INT                 Random seed for reproducibility (default: 42)
---tau-high FLOAT           High confidence threshold (default: 0.32)
---tau-low FLOAT            Low confidence threshold (default: 0.24)
---max-escalations INT      Max frames per query (default: 5)
--v, --verbose              Verbose logging
+runner = BenchmarkRunner(
+    config,
+    retriever=CLIPEngine(...),
+    router=BudgetAwareRouter(tau_high=0.32, tau_low=0.24),
+    reasoner=ClaudeReasoner(...),
+)
 ```
 
 ---
 
-## Metric Definitions
+## 4. Metric definitions
 
-### Retrieval Metrics (Information Retrieval Standard)
+### 4.1 Retrieval quality
 
-**Recall@K** (What fraction of true positives did we find?)
-```
-R@K = (# relevant items in top-K) / (# total relevant items)
-Range: [0, 1]
-Example: R@5 = 2/3 means we found 2 out of 3 relevant frames in top-5
-```
+All metrics operate on *frame indices*, against the `relevant_indices`
+set declared in the JSONL.
 
-**Precision@K** (What fraction of top-K results are correct?)
-```
-P@K = (# relevant items in top-K) / K
-Range: [0, 1]
-Example: P@5 = 2/5 means 2 out of 5 retrieved frames are relevant
-```
+| Metric | Definition |
+| --- | --- |
+| Recall@K | `(# relevant indices in top-K) / total_relevant`. `total_relevant` falls back to `len(relevant_indices)` when omitted from the JSONL. |
+| Precision@K | `(# relevant indices in top-K) / K`. |
+| F1@K | Harmonic mean of P@K and R@K. F1@5 reported by default. |
+| MRR | `1 / (1-indexed rank of first relevant hit)`. 0.0 when no hit. |
+| nDCG@K | `DCG@K / IDCG@K`, binary relevance: `DCG@K = Σ rel_i / log₂(i+2)` for i in [0, K), `IDCG@K = Σ 1 / log₂(i+2)` for i in [0, min(\|relevant\|, K)). |
 
-**F1@K** (Harmonic mean: balance of precision and recall)
-```
-F1@K = 2 * (P@K * R@K) / (P@K + R@K)
-Range: [0, 1]
-Penalizes systems that are biased toward either precision or recall
-```
+`total_relevant` matters: ambient-scene queries typically have far more
+relevant frames than an annotator enumerates. Setting `total_relevant: 60`
+when only 12 are listed scales Recall down honestly instead of inflating
+it.
 
-**MRR** (Mean Reciprocal Rank — speed to first relevant result)
-```
-MRR = mean(1 / rank_of_first_relevant_item)
-Range: [0, 1]
-Example: If first relevant item is at rank 3, contributes 1/3 ≈ 0.33
-Useful for: Assessing how quickly the user finds what they need
-```
+### 4.2 Privacy
 
-**nDCG@K** (Normalized Discounted Cumulative Gain — ranking quality)
-```
-nDCG@K = DCG@K / IDCG@K
-where DCG = Σ(relevance_i / log2(i+1))
-Range: [0, 1]
-Measures ranking quality considering both position and relevance degree
-Higher positions are weighted more; irrelevant items contribute 0
-```
+- `fraction_queries_on_prem = (# queries with frames_escalated == 0) / total_queries`.
+- `fraction_frames_on_prem = 1 - min(unique_frames_escalated, corpus_size) / corpus_size`.
 
-### Privacy Metrics (Novel to This Project)
+The `unique_frames_escalated` denominator deliberately counts the
+**union** of frames sent to Claude across queries — sending the same
+frame to Claude for two different queries still only leaks one frame.
+Without this, escalating the same hot frame for ten queries would
+falsely tank the privacy score.
 
-**Fraction of Queries On-Premise**
+For `claude_only_stub`, every corpus frame is conceptually shipped, so
+`unique_frames_escalated` is set to `corpus_size` and the fraction is
+exactly 0.
+
+### 4.3 Cost
+
 ```
-= (# queries with zero cloud escalation) / (# total queries)
-Range: [0, 1]
-Target: ≥ 0.60 (60% of queries resolved by CLIP alone)
-Measurement: frames_escalated == 0
+total_estimated_cost_usd = Σ per-query estimates recorded during the run
+computed_cost_usd        = (input_tokens / 1M) * $1.00 + (output_tokens / 1M) * $5.00
+cost_per_query           = computed_cost_usd / total_queries
 ```
 
-**Fraction of Frames On-Premise**
-```
-= 1 - (# frames sent to cloud) / (# total frames in corpus)
-Range: [0, 1]
-Target: ≥ 0.99 (99% of video data never leaves enterprise)
-Measurement: Based on cumulative frame escalation counts
-Example: 1 - (50 escalated / 36000 corpus) ≈ 0.9986 (99.86% on-prem)
-```
+`computed_cost_usd` is recomputed from token totals as a sanity check —
+they should agree to within floating-point noise. Pricing is
+configurable via `EvaluationConfig.price_per_1m_{input,output}_tokens`.
 
-### Cost Metrics (Token Economics)
+### 4.4 Latency
 
-**Total Input Tokens**
-- Sum of tokens consumed across all Claude calls
-- Priced at $1.00 per 1M tokens (Claude Haiku 4.5)
-
-**Total Output Tokens**
-- Sum of tokens generated by Claude
-- Priced at $5.00 per 1M tokens
-
-**Cost per Query (USD)**
-```
-= (total_input_tokens / 1M * $1.00 + total_output_tokens / 1M * $5.00) / num_queries
-Target: < $0.01 per query-hour (dual-agent) vs. ~$0.38 per query-hour (claude-only)
-```
-
-### Latency Metrics (Milliseconds)
-
-**CLIP Latency**
-- Local text encoding + FAISS search (on-premise)
-- Mean and p95 (95th percentile)
-
-**Claude Latency**
-- API call time for reasoning (cloud, only for escalated queries)
-- Mean and p95 across all queries (including zeros for non-escalated)
-
-**Total Latency**
-- End-to-end time from query submission to result
-- Mean: ~800ms (weighted by escalation rate)
-- p95: < 3000ms (target for interactive workflows)
+For each stage and end-to-end:
+- `mean_ms = sum(values) / len(values)`
+- `p95_ms` = `percentile(values, 95)` using inclusive-rank percentile
+  (equivalent to NumPy `interpolation='lower'`; deterministic, no NumPy
+  dependency).
 
 ---
 
-## Result Output Format
+## 5. Output format
 
-### JSON Results (`evals/results/aggregate_<mode>_<timestamp>.json`)
+Every run produces four files, all timestamped with
+`YYYYMMDD_HHMMSS`:
+
+```
+evals/results/aggregate_<mode>_<ts>.json
+evals/results/queries_<mode>_<ts>.json
+evals/results/queries_<mode>_<ts>.csv
+evals/results/config_<mode>_<ts>.json
+```
+
+### `aggregate_<mode>_<ts>.json`
 
 ```json
 {
-  "metadata": {
-    "mode": "dual_agent",
-    "timestamp": "2026-05-21T14:30:00.123456",
-    "total_queries": 5
-  },
-  "retrieval_metrics": {
-    "recall_at_1": 0.80,
-    "recall_at_5": 0.95,
-    "recall_at_10": 0.98,
-    "precision_at_5": 0.90,
-    "precision_at_10": 0.88,
-    "f1_at_5": 0.92,
-    "mrr": 0.65,
-    "ndcg_at_5": 0.88,
-    "ndcg_at_10": 0.90
-  },
-  "routing_metrics": {
-    "queries_on_prem_only": 3,
-    "queries_escalated": 2,
-    "avg_frames_escalated_per_query": 2.0
-  },
-  "privacy_metrics": {
-    "total_queries": 5,
-    "queries_resolved_on_prem": 3,
-    "fraction_queries_on_prem": 0.60,
-    "total_frames_in_corpus": 36000,
-    "frames_escalated_to_cloud": 10,
-    "fraction_frames_on_prem": 0.9997
-  },
-  "cost_metrics": {
-    "total_input_tokens": 5000,
-    "total_output_tokens": 1000,
-    "total_estimated_cost_usd": 0.0055,
-    "computed_cost_usd": 0.0055,
-    "pricing": {
-      "input_tokens_per_1m": 1.00,
-      "output_tokens_per_1m": 5.00
-    }
-  },
-  "latency_metrics": {
-    "retriever": {
-      "mean_ms": 50,
-      "p95_ms": 65
-    },
-    "reasoner": {
-      "mean_ms": 20,
-      "p95_ms": 85
-    },
-    "total": {
-      "mean_ms": 70,
-      "p95_ms": 150
-    }
-  }
+  "metadata": {"mode": "dual_agent", "timestamp": "...", "total_queries": 5},
+  "retrieval_metrics": {"recall_at_1": ..., "recall_at_5": ..., ...},
+  "routing_metrics":   {"immediate_match": 3, "escalated": 2, "dropped": 0,
+                        "clip_only": 0, "claude_only": 0,
+                        "avg_frames_escalated_per_query": 2.0},
+  "privacy_metrics":   {"total_queries": 5,
+                        "queries_resolved_on_prem": 3,
+                        "fraction_queries_on_prem": 0.6,
+                        "total_frames_in_corpus": 36000,
+                        "unique_frames_escalated": 10,
+                        "total_frame_escalations": 10,
+                        "fraction_frames_on_prem": 0.9997},
+  "cost_metrics":      {"total_input_tokens": 3200,
+                        "total_output_tokens": 540,
+                        "total_estimated_cost_usd": 0.0059,
+                        "computed_cost_usd": 0.0059,
+                        "pricing": {"input_per_1m_usd": 1.0,
+                                    "output_per_1m_usd": 5.0}},
+  "latency_metrics":   {"retriever": {"mean_ms": ..., "p95_ms": ...},
+                        "router":    {"mean_ms": ..., "p95_ms": ...},
+                        "reasoner":  {"mean_ms": ..., "p95_ms": ...},
+                        "total":     {"mean_ms": ..., "p95_ms": ...}},
+  "config":            { ...full EvaluationConfig... }
 }
 ```
 
-### Detailed Query Results (`evals/results/queries_<mode>_<timestamp>.json`)
+### `queries_<mode>_<ts>.csv`
 
-```json
-[
-  {
-    "query_id": "veh_001",
-    "query_text": "white SUV cutting off truck in left lane",
-    "event_type": "vehicle_interaction",
-    "expected_relevance_notes": "...",
-    "clip_latency_ms": 52.3,
-    "clip_top_k": 20,
-    "clip_top_1_score": 0.78,
-    "clip_top_5_scores": [0.78, 0.75, 0.72, 0.68, 0.65],
-    "router_decision": "ESCALATED",
-    "frames_escalated": 5,
-    "estimated_cost_usd": 0.0015,
-    "reasoner_latency_ms": 145.2,
-    "reasoner_called": true,
-    "input_tokens": 1200,
-    "output_tokens": 150,
-    "total_latency_ms": 197.5,
-    "ground_truth_relevant": null
-  }
-]
+Stable column order — append-only contract for downstream tooling:
+
 ```
+query_id, query_text, event_type,
+router_decision, frames_escalated, reasoner_called,
+input_tokens, output_tokens, estimated_cost_usd,
+retriever_latency_ms, router_latency_ms, reasoner_latency_ms, total_latency_ms,
+clip_top_1_score, total_relevant, num_relevant_indices,
+ranked_indices, relevant_indices
+```
+
+`ranked_indices` and `relevant_indices` are JSON-encoded list literals so
+each row stays a single CSV cell.
 
 ---
 
-## How to Run
+## 6. CLI
 
-### Quick Start
-
-```bash
-# Run example benchmark in dual-agent mode
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent
-
-# Run CLIP-only baseline
-python -m src.eval --queries evals/queries.example.jsonl --mode clip_only
-
-# Run with custom config
-python -m src.eval --config my_config.json --mode dual_agent
-
-# Verbose logging
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent -v
+```
+python -m src.eval.run_benchmark \
+    --queries evals/queries.example.jsonl \
+    --mode dual_agent \
+    --seed 42 \
+    --tau-high 0.32 --tau-low 0.24 \
+    --corpus-size 36000 \
+    --output-dir evals/results
 ```
 
-### Reproducing Results
-
-```bash
-# Same seed ensures deterministic results
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent \
-  --seed 42 --tau-high 0.32 --tau-low 0.24
-
-# Results saved to: evals/results/aggregate_dual_agent_<timestamp>.json
+```
+--mode {clip_only,dual_agent,claude_only_stub}   (required)
+--queries PATH               JSONL benchmark file
+--config PATH                Optional JSON config (CLI flags override its values)
+--output-dir DIR             Where to write artefacts
+--seed INT                   RNG seed for deterministic stand-ins
+--tau-high FLOAT             Router high-confidence threshold (default 0.32)
+--tau-low FLOAT              Router low-confidence threshold  (default 0.24)
+--max-escalations INT        Max frames escalated per query (default 5)
+--corpus-size INT            Total frames in corpus (default 36000)
+--retrieval-top-k INT        Top-K frames CLIP returns (default 20)
+-v, --verbose                DEBUG-level logging
 ```
 
-### Creating Custom Config
-
-```bash
-# Save config to JSON
-cat > eval_config.json <<EOF
-{
-  "seed": 42,
-  "tau_high": 0.32,
-  "tau_low": 0.24,
-  "max_escalations": 5,
-  "cost_per_image": 0.0003,
-  "queries_file": "evals/queries.example.jsonl",
-  "output_dir": "evals/results",
-  "mode": "dual_agent"
-}
-EOF
-
-# Use config
-python -m src.eval --config eval_config.json --mode dual_agent
-```
+`python -m src.eval` is also accepted (it forwards to the same entry
+point).
 
 ---
 
-## Interpretation Guide
+## 7. Reproducibility model
 
-### Success Criteria (WP1 Defense)
+- `BenchmarkRunner.run()` instantiates `random.Random(config.seed)` at
+  the top; every per-query RNG is derived from `(root.random(), query_id, …)`.
+- Adding or removing a query does not change results for other queries.
+- Same `--seed` + `--queries` + `--mode` ⇒ byte-identical JSON / CSV
+  content (the embedded timestamp is the only varying field).
+- The `config` block inside `aggregate_*.json` records every parameter
+  the run used, so any artefact alone is enough to re-run it.
 
-| Metric | Target | Interpretation |
-|--------|--------|-----------------|
-| **Recall@5** | ≥ 0.80 | ≥80% of relevant frames in top-5 |
-| **F1@5** | ≥ 0.78 | Balanced precision-recall performance |
-| **Privacy (on-prem)** | ≥ 0.99 | ≥99% of frames never leave enterprise |
-| **Cost** | < $0.01/query | <1¢ per query vs. $0.38 naive baseline |
-| **Latency (p95)** | < 3000ms | Sub-3-second response for interactive use |
+---
 
-### WP7 Baseline Comparison Template
-
-When comparing three modes across metrics:
+## 8. Tests
 
 ```
-Metric              | CLIP-Only | Dual-Agent | Claude-Only
-==================|===========|============|===========
-Recall@5          |   0.65    |   0.85     |   0.92
-Privacy (on-prem) |   1.00    |   0.99     |   0.00
-Cost (per query)  |  $0.00    |   $0.005   |   $0.38
-Latency (p95)     |   80ms    |   250ms    |  2500ms
+tests/eval/test_metrics.py   34 assertions across recall/precision/F1/MRR/nDCG/percentile/mean/aggregate
+tests/eval/test_harness.py   End-to-end smoke tests across all three modes
 ```
 
-Interpretation:
-- **CLIP-Only:** Fast but inaccurate (65% recall), zero cost
-- **Dual-Agent:** Best trade-off (85% recall, 99% privacy, $0.005/query, 250ms)
-- **Claude-Only:** Best accuracy but prohibitive cost/latency/privacy
-
----
-
-## Integration with WP5 (Existing Components)
-
-Evaluation harness reuses:
-- `src.retriever.clip_engine.CLIPEngine` — Text/image embedding
-- `src.router.core.BudgetAwareRouter` — Confidence-gated routing
-- `src.reasoner.claude_engine.ClaudeReasoner` — Claude Haiku 4.5 verification
-- `src.utils.metrics.TokenEconomics` — Cost tracking
-
-No modifications to WP5 interfaces required.
-
----
-
-## Integration with WP7 (Baseline Comparisons)
-
-WP7 will extend evaluation with:
-1. Ground truth annotation loader (real relevance labels)
-2. Real Claude-only baseline implementation (replaces stub)
-3. Comparative result aggregation (all three modes in one table)
-4. Statistical significance testing (if applicable)
-
-Current WP6 design supports this cleanly via:
-- `evaluate_claude_only_stub()` → upgraded in WP7
-- `relevant_ranks` field in QueryResult → populated in WP7 with ground truth
-- `mode` parameter → easy to loop over all three baselines
-
----
-
-## Testing
-
-Unit tests for metric functions (example):
-
-```python
-# test_metrics.py
-def test_recall_at_k():
-    assert recall_at_k([0, 2, 5], k=5) == 2/3  # 2 relevant in top-5 out of 3 total
-    assert recall_at_k([10, 20], k=5) == 0.0   # No relevant items in top-5
-
-def test_ndcg_at_k():
-    scores = [0.9, 0.8, 0.7, 0.6, 0.5]
-    labels = [1, 1, 0, 1, 0]  # Relevant, relevant, -, relevant, -
-    ndcg = ndcg_at_k(scores, labels, k=5)
-    assert 0 <= ndcg <= 1
+```
+pytest tests/eval/ -v
 ```
 
-Run tests:
-```bash
-pytest tests/eval/test_metrics.py -v
-```
+`test_harness.py::test_claude_only_stub_caps_privacy_denominator`
+specifically guards against the regression where the
+`fraction_frames_on_prem` calculation could go negative when
+`frames_escalated` was summed without bounding.
 
 ---
 
-## Known Limitations (Documented for WP7)
+## 9. Integration with WP5
 
-1. **Ground Truth:** Currently mocked (uniform random relevance). WP7 will populate with real annotations.
-2. **Claude-Only Baseline:** Currently a stub (placeholder). WP7 will implement real multi-frame processing.
-3. **Latency:** Mocked with fixed sleep times. Real deployment will measure actual Anthropic API latency.
-4. **Token Costs:** Assume Claude Haiku 4.5 pricing ($1/1M input, $5/1M output). Will validate against real API usage.
+Reuses (no modifications required):
+- [src/retriever/clip_engine.py](../../src/retriever/clip_engine.py) — `CLIPEngine` for embeddings + FAISS search.
+- [src/router/core.py](../../src/router/core.py) — `BudgetAwareRouter`; the harness mirrors its `tau_high` / `tau_low` defaults exactly.
+- [src/reasoner/claude_engine.py](../../src/reasoner/claude_engine.py) — `ClaudeReasoner` (Claude Haiku 4.5 via the Anthropic SDK).
 
----
-
-## Reference Links
-
-- **Architecture:** docs/architecture.md
-- **WP5 (Retriever & Router):** docs/work_packages/wp5_reasoner_router.md
-- **Example Queries:** evals/queries.example.jsonl
-- **Results:** evals/results/ (post-execution)
+When called with `retriever=None, router=None, reasoner=None`, the
+harness substitutes deterministic stand-ins so it runs in CI on a
+developer laptop without GPUs or API keys. The shape of the outputs is
+identical.
 
 ---
 
-**Author:** Koby Lev  
-**Last Updated:** 2026-05-21  
-**Status:** ✅ Complete
+## 10. Hand-off to WP7
+
+WP6 was designed so WP7 can extend it without rewrites:
+
+1. **Real Claude-only baseline.** Replace `modes.run_claude_only_stub`
+   with an implementation that actually drives `ClaudeReasoner` over the
+   full corpus. Keep the signature, keep `router_decision = "CLAUDE_ONLY"`
+   so the privacy-cap logic in `harness._aggregate` still applies.
+2. **Real ground truth.** The current example JSONL has illustrative
+   `relevant_indices`. WP7 plugs in annotator output.
+3. **Three-way comparison.** Loop over `(clip_only, dual_agent,
+   claude_only)` with the same query file and seed; the artefact format
+   already supports side-by-side reads.
+4. **Statistical significance.** If WP7 wants confidence intervals,
+   bootstrap over the per-query JSON (`queries_<mode>_<ts>.json`) —
+   no harness changes required.
+
+---
+
+## 11. Known limitations
+
+- The stand-in components in `modes.py` are deterministic mocks — the
+  reported numbers in `evals/results/` are illustrative until WP7 wires
+  real components in.
+- `total_relevant` ground-truth values are estimates in the example
+  benchmark. WP7 will use annotator-determined counts.
+- Token cost assumes Claude Haiku 4.5 list pricing
+  ($1.00/1M input, $5.00/1M output). Override via `EvaluationConfig` for
+  experimentation.
+
+---
+
+## 12. References
+
+- Architecture overview: [docs/architecture.md](../architecture.md)
+- WP5 (Retriever & Router): [docs/work_packages/wp5_reasoner_router.md](wp5_reasoner_router.md)
+- WP7 (Baselines): [docs/work_packages/wp7_baselines.md](wp7_baselines.md)
+- Example benchmark: [evals/queries.example.jsonl](../../evals/queries.example.jsonl)
+- Results directory: [evals/results/](../../evals/results/)

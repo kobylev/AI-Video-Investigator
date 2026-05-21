@@ -1,67 +1,52 @@
-"""
-WP6 - Evaluation Harness for AI Video Investigator
-===================================================
-Comprehensive evaluation framework for the dual-agent CLIP→Claude pipeline.
+"""WP6 - Evaluation Harness for the AI Video Investigator.
 
-Supports three evaluation modes:
-  1. clip_only: CLIP retriever baseline (no reasoning)
-  2. dual_agent: CLIP + Router + Claude cascade (main system)
-  3. claude_only_stub: Naive Claude-only baseline (placeholder for WP7)
+Layout
+------
+    models.py         Dataclasses (EvaluationSample, QueryResult, …)
+    metrics.py        Pure functions (recall_at_k, ndcg_at_k, …)
+    io.py             JSONL load + JSON/CSV write
+    modes.py          Per-mode execution adapters
+    harness.py        BenchmarkRunner orchestration
+    run_benchmark.py  CLI entry point
 
-Core Components:
-  - models.py: Strongly-typed result and config dataclasses
-  - metrics.py: Pure metric computation functions
-  - harness.py: BenchmarkEvaluator orchestration
-  - __main__.py: CLI entry point
+Run a benchmark:
 
-Metrics Computed:
-  Retrieval:
-    - Recall@K (1, 5, 10)
-    - Precision@K (5, 10)
-    - F1@K (5, 10)
-    - MRR (Mean Reciprocal Rank)
-    - nDCG@K (5, 10)
+    python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode dual_agent
 
-  Routing & Privacy:
-    - Fraction of queries resolved on-premise (no cloud escalation)
-    - Fraction of frames never sent to cloud
-    - Number of frames escalated per query
-
-  Cost:
-    - Total input/output tokens
-    - Estimated cost (USD)
-    - Cost per query
-
-  Latency:
-    - CLIP retriever latency (mean, p95)
-    - Claude reasoner latency (mean, p95)
-    - Total end-to-end latency (mean, p95)
-
-Usage:
-  python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent
-  python -m src.eval --config config.json --mode clip_only
-
-Results are saved to evals/results/ as JSON and CSV for later analysis.
+See `docs/work_packages/wp6_eval_harness.md` for the full architecture and
+metric definitions.
 """
 
+from src.eval.harness import BenchmarkRunner
 from src.eval.models import (
-    EvaluationConfig,
-    QueryResult,
-    PrivacyMetrics,
-    CostMetrics,
-    LatencyMetrics,
     AggregateMetrics,
+    CostMetrics,
+    EvaluationConfig,
+    EvaluationSample,
+    LatencyMetrics,
+    PrivacyMetrics,
+    QueryResult,
+    RetrievalMetrics,
+    RoutingMetrics,
+    MODE_CLAUDE_ONLY_STUB,
+    MODE_CLIP_ONLY,
+    MODE_DUAL_AGENT,
+    VALID_MODES,
 )
-from src.eval.harness import BenchmarkEvaluator
-from src.eval import metrics
 
 __all__ = [
+    "BenchmarkRunner",
     "EvaluationConfig",
+    "EvaluationSample",
     "QueryResult",
+    "AggregateMetrics",
     "PrivacyMetrics",
     "CostMetrics",
     "LatencyMetrics",
-    "AggregateMetrics",
-    "BenchmarkEvaluator",
-    "metrics",
+    "RetrievalMetrics",
+    "RoutingMetrics",
+    "MODE_CLIP_ONLY",
+    "MODE_DUAL_AGENT",
+    "MODE_CLAUDE_ONLY_STUB",
+    "VALID_MODES",
 ]

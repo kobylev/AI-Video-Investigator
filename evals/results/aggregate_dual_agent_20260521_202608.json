@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "mode": "dual_agent",
+    "timestamp": "2026-05-21T17:26:08.352416+00:00",
+    "total_queries": 5
+  },
+  "retrieval_metrics": {
+    "recall_at_1": 0.24499999999999997,
+    "recall_at_5": 0.5716666666666667,
+    "recall_at_10": 0.6916666666666667,
+    "precision_at_5": 0.5599999999999999,
+    "precision_at_10": 0.33999999999999997,
+    "f1_at_5": 0.4645421245421245,
+    "mrr": 1.0,
+    "ndcg_at_5": 0.7855961966158725,
+    "ndcg_at_10": 0.7845311220597405
+  },
+  "routing_metrics": {
+    "immediate_match": 5,
+    "escalated": 0,
+    "dropped": 0,
+    "clip_only": 0,
+    "claude_only": 0,
+    "avg_frames_escalated_per_query": 0.0
+  },
+  "privacy_metrics": {
+    "total_queries": 5,
+    "queries_resolved_on_prem": 5,
+    "fraction_queries_on_prem": 1.0,
+    "total_frames_in_corpus": 36000,
+    "unique_frames_escalated": 0,
+    "total_frame_escalations": 0,
+    "fraction_frames_on_prem": 1.0
+  },
+  "cost_metrics": {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_estimated_cost_usd": 0.0,
+    "computed_cost_usd": 0.0,
+    "pricing": {
+      "input_per_1m_usd": 1.0,
+      "output_per_1m_usd": 5.0
+    }
+  },
+  "latency_metrics": {
+    "retriever": {
+      "mean_ms": 49.94941188059165,
+      "p95_ms": 69.32048921191699
+    },
+    "router": {
+      "mean_ms": 2.382481184513575,
+      "p95_ms": 3.2647737762338966
+    },
+    "reasoner": {
+      "mean_ms": 0.0,
+      "p95_ms": 0.0
+    },
+    "total": {
+      "mean_ms": 52.33189306510521,
+      "p95_ms": 72.07029261459799
+    }
+  },
+  "config": {
+    "mode": "dual_agent",
+    "queries_file": "evals/queries.example.jsonl",
+    "output_dir": "evals/results",
+    "seed": 42,
+    "tau_high": 0.32,
+    "tau_low": 0.24,
+    "max_escalations": 5,
+    "corpus_size": 36000,
+    "retrieval_top_k": 20,
+    "price_per_1m_input_tokens": 1.0,
+    "price_per_1m_output_tokens": 5.0,
+    "cost_per_escalated_image": 0.0003,
+    "stub_input_tokens_per_query": 75000,
+    "stub_output_tokens_per_query": 2000,
+    "stub_latency_ms": 1500.0
+  }
+}

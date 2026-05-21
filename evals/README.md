@@ -1,256 +1,176 @@
-# Evaluation Harness — AI Video Investigator (WP6)
+# `evals/` — Benchmarks, Ground Truth, Results
 
-This directory contains benchmarks, ground truth, and results for the AI Video Investigator project.
+Inputs and outputs for the WP6 evaluation harness. Implementation lives
+under [src/eval/](../src/eval/); deep documentation is in
+[docs/work_packages/wp6_eval_harness.md](../docs/work_packages/wp6_eval_harness.md).
 
 ---
 
-## Quick Start
-
-Run a benchmark evaluation:
+## Quick start
 
 ```bash
-# Dual-agent (main system)
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent
+# Main system (CLIP → Router → Claude Haiku 4.5)
+python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode dual_agent
 
-# CLIP-only baseline
-python -m src.eval --queries evals/queries.example.jsonl --mode clip_only
+# Retriever-only baseline
+python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode clip_only
 
-# Claude-only naive baseline (placeholder for WP7)
-python -m src.eval --queries evals/queries.example.jsonl --mode claude_only_stub
-
-# Custom configuration
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent \
-  --tau-high 0.35 --tau-low 0.25 --seed 42
+# Naive "all frames to Claude" baseline (placeholder for WP7)
+python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode claude_only_stub
 ```
 
-Results are saved to `results/` as JSON files with timestamps.
+`python -m src.eval` is also accepted and forwards to the same entry point.
+
+Every invocation writes four timestamped artefacts to `evals/results/`:
+
+```
+aggregate_<mode>_<ts>.json   # top-level metrics (the headline numbers)
+queries_<mode>_<ts>.json     # per-query records, full fidelity
+queries_<mode>_<ts>.csv      # per-query records, spreadsheet-friendly
+config_<mode>_<ts>.json      # the EvaluationConfig the run used
+```
+
+Same `--seed` plus same `--queries` plus same `--mode` ⇒ byte-identical
+results across `.json` files (timestamps differ).
 
 ---
 
-## Directory Structure
+## Query file format
 
-```
-evals/
-├── queries.example.jsonl          # 5 example benchmark queries
-├── results/                       # Generated results (JSON/CSV)
-│   ├── aggregate_dual_agent_*.json
-│   ├── queries_dual_agent_*.json
-│   └── config_dual_agent_*.json
-├── README.md                      # This file
-```
-
----
-
-## Benchmark Structure
-
-### Query Format (`queries.example.jsonl`)
-
-JSONL file with one query per line:
+JSONL — one query per line. Required fields are `query_id` and
+`query_text`; the rest are optional but recommended.
 
 ```json
 {
   "query_id": "veh_001",
   "query_text": "white SUV cutting off truck in left lane",
   "event_type": "vehicle_interaction",
-  "expected_relevance_notes": "Should match frames showing white SUV performing sudden lane change..."
+  "relevant_indices": [142, 143, 144, 1287],
+  "total_relevant": 4,
+  "expected_relevance_notes": "Frames showing a white SUV performing a sudden lane change…"
 }
 ```
 
-Query fields:
-- `query_id`: Unique identifier (e.g., "veh_001", "ped_001")
-- `query_text`: Natural language query for semantic search
-- `event_type`: Category (vehicle_interaction, pedestrian_event, object_of_interest, traffic_violation, ambient_scene)
-- `expected_relevance_notes`: Guide for annotators on expected ground truth
+| Field | Type | Purpose |
+| --- | --- | --- |
+| `query_id` | str | Stable identifier; carried into every result row. |
+| `query_text` | str | The natural-language query. |
+| `event_type` | str | One of `vehicle_interaction`, `pedestrian_event`, `object_of_interest`, `traffic_violation`, `ambient_scene` (free-form; used only for slicing). |
+| `relevant_indices` | list[int] | Corpus frame indices the annotator marked relevant. Drives Recall@K, Precision@K, F1@5, MRR, nDCG@K. |
+| `total_relevant` | int | Recall@K denominator. May exceed `len(relevant_indices)` when annotators only enumerated a subset (common for `ambient_scene`). Defaults to `len(relevant_indices)` if omitted. |
+| `expected_relevance_notes` | str | Free-text guidance for downstream annotation reviews. |
 
-### Event Types
-
-1. **vehicle_interaction** — Traffic interactions (lane changes, following, merging)
-2. **pedestrian_event** — Pedestrian activities (jaywalking, crosswalk behavior)
-3. **object_of_interest** — Specific vehicles/objects by visual description
-4. **traffic_violation** — Rule violations (red lights, speeding, wrong-way)
-5. **ambient_scene** — Environmental/context queries (weather, time, traffic density)
+A query with no `relevant_indices` is still valid — it will contribute
+0.0 to every retrieval metric. Privacy, cost, and latency are still
+recorded for it.
 
 ---
 
-## Evaluation Modes
+## Evaluation modes
 
-### 1. CLIP-Only Baseline
-- **Mode:** `clip_only`
-- **What:** CLIP retriever only, no reasoning or routing
-- **Expected:**
-  - High recall (CLIP is comprehensive but not precise)
-  - Zero cost (no Claude calls)
-  - Fast latency (sub-100ms)
+| Mode | What runs | Expected shape |
+| --- | --- | --- |
+| `clip_only` | CLIP retriever only — no router, no Claude. | 100% on-prem, $0 cost, fast latency. Sets the floor for retrieval quality. |
+| `dual_agent` | CLIP → BudgetAwareRouter (τ_low/τ_high) → Claude Haiku 4.5 on the ambiguous band. | Most queries resolved on-prem; small Claude bill when CLIP is unsure. |
+| `claude_only_stub` | Naive baseline that conceptually ships every corpus frame to Claude. WP7 will replace the stub with the real implementation. | Highest accuracy ceiling, but ~$0.08/query and 0% on-prem. Motivates the cascade. |
+
+Modes are selected with `--mode`. The harness rejects unknown values.
+
+---
+
+## What the harness measures
+
+**Retrieval quality** (against the JSONL ground truth):
+- `Recall@{1,5,10}` — fraction of relevant frames the system surfaced in top-K.
+- `Precision@{5,10}` — fraction of top-K that was relevant.
+- `F1@5` — harmonic mean of P@5 and R@5.
+- `MRR` — 1 / rank of the first relevant hit, averaged.
+- `nDCG@{5,10}` — position-weighted ranking quality.
+
+**Routing**:
+- Counts of `IMMEDIATE_MATCH`, `ESCALATED`, `DROPPED`, plus the mode-specific
+  `CLIP_ONLY` and `CLAUDE_ONLY` decisions.
+- Average frames escalated per query.
+
+**Privacy** (first-class outputs):
+- Fraction of queries resolved entirely on-prem (zero escalations).
+- Fraction of frames never sent to cloud, counting **unique** frames so
+  re-escalating the same frame across queries isn't double-counted.
+
+**Cost** (Claude Haiku 4.5 list pricing — $1/M input, $5/M output by default):
+- Total input/output tokens, total estimated USD, computed USD (sanity
+  check from token totals), and USD per query.
+
+**Latency** (in ms):
+- Retriever, router, reasoner, and end-to-end. Mean + p95 for each.
+
+---
+
+## Adding your own benchmark
+
+```jsonl
+{"query_id": "custom_001", "query_text": "…", "event_type": "vehicle_interaction", "relevant_indices": [101, 102], "total_relevant": 2}
+{"query_id": "custom_002", "query_text": "…", "event_type": "ambient_scene",     "relevant_indices": [9000, 9001, 9002], "total_relevant": 50}
+```
 
 ```bash
-python -m src.eval --queries evals/queries.example.jsonl --mode clip_only
+python -m src.eval.run_benchmark --queries evals/my_queries.jsonl --mode dual_agent --corpus-size 36000
 ```
 
-### 2. Dual-Agent (Main System)
-- **Mode:** `dual_agent`
-- **What:** CLIP → Router (τ_high=0.32, τ_low=0.24) → Claude Haiku 4.5
-- **Expected:**
-  - Balanced accuracy (CLIP + Claude re-ranking)
-  - Low cost (40-60% queries skip Claude)
-  - Privacy-first (99% on-premise)
-  - ~250ms p95 latency
-
-```bash
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent
-```
-
-### 3. Claude-Only Stub (Naive Baseline)
-- **Mode:** `claude_only_stub`
-- **What:** Placeholder for WP7 (will process all frames)
-- **Expected:**
-  - Best accuracy but prohibitive cost
-  - Demonstrates cost-quality trade-off
-  - Motivates the dual-agent approach
-
-```bash
-python -m src.eval --queries evals/queries.example.jsonl --mode claude_only_stub
-```
+`--corpus-size` matters because it's the denominator of the
+"frames-on-prem" privacy metric. Default is 36000 (10h @ 1fps).
 
 ---
 
-## Success Metrics
-
-### Retrieval Metrics (Information Retrieval Standard)
-- **Recall@K (R@1, R@5, R@10)** — Fraction of relevant items found in top-K
-- **Precision@K (P@5, P@10)** — Fraction of top-K results that are relevant
-- **F1@K** — Harmonic mean of precision and recall
-- **MRR (Mean Reciprocal Rank)** — Speed to first relevant result
-- **nDCG@K** — Ranking quality considering position and relevance
-
-### Privacy Metrics (Novel)
-- **Fraction of Queries On-Premise** — % with zero cloud escalation (target: ≥60%)
-- **Fraction of Frames On-Premise** — % of video never sent to cloud (target: ≥99%)
-
-### Cost Metrics (Token Economics)
-- **Total Input Tokens** — Accumulated Claude input tokens
-- **Total Output Tokens** — Accumulated Claude output tokens
-- **Cost per Query (USD)** — Average cost (target: <$0.01)
-
-### Latency Metrics (Milliseconds)
-- **CLIP Latency** — Local embedding + search (mean, p95)
-- **Claude Latency** — Cloud reasoning (mean, p95)
-- **Total Latency** — End-to-end (mean, p95, target: <3000ms)
-
----
-
-## Output Format
-
-### Aggregate Results (`results/aggregate_<mode>_<timestamp>.json`)
-
-High-level summary metrics:
-
-```json
-{
-  "metadata": {"mode": "dual_agent", "total_queries": 5},
-  "retrieval_metrics": {
-    "recall_at_1": 0.80,
-    "recall_at_5": 0.95,
-    "f1_at_5": 0.92,
-    "mrr": 0.65
-  },
-  "privacy_metrics": {
-    "fraction_queries_on_prem": 0.60,
-    "fraction_frames_on_prem": 0.9997
-  },
-  "cost_metrics": {
-    "total_cost_usd": 0.0055,
-    "cost_per_query_usd": 0.0011
-  },
-  "latency_metrics": {
-    "total_mean_ms": 200,
-    "total_p95_ms": 450
-  }
-}
-```
-
-### Detailed Query Results (`results/queries_<mode>_<timestamp>.json`)
-
-Per-query breakdown for debugging and analysis:
-
-```json
-[
-  {
-    "query_id": "veh_001",
-    "query_text": "white SUV cutting off truck",
-    "clip_latency_ms": 52,
-    "router_decision": "ESCALATED",
-    "frames_escalated": 5,
-    "reasoner_latency_ms": 145,
-    "input_tokens": 1200,
-    "output_tokens": 150,
-    "total_latency_ms": 197
-  }
-]
-```
-
----
-
-## Interpretation Guide
-
-### Baseline Comparison (WP7)
+## CLI reference
 
 ```
-Metric              | CLIP-Only | Dual-Agent | Claude-Only
-==================|===========|============|===========
-Recall@5          |   0.65    |   0.85     |   0.92
-Privacy (on-prem) |   1.00    |   0.99     |   0.00
-Cost (per query)  |  $0.00    |   $0.005   |   $0.38
-Latency (p95)     |   80ms    |   250ms    |  2500ms
-```
-
-**Interpretation:**
-- **CLIP-Only:** Cheap & fast but inaccurate (privacy-focused retrieval only)
-- **Dual-Agent:** Best trade-off (accuracy + privacy + cost + latency)
-- **Claude-Only:** Best accuracy but prohibitive for production
-
----
-
-## Adding Custom Queries
-
-Create a new JSONL file:
-
-```json
-{"query_id": "custom_001", "query_text": "my query", "event_type": "vehicle_interaction", "expected_relevance_notes": "..."}
-{"query_id": "custom_002", "query_text": "another query", "event_type": "pedestrian_event", "expected_relevance_notes": "..."}
-```
-
-Run evaluation:
-
-```bash
-python -m src.eval --queries evals/custom_queries.jsonl --mode dual_agent
+--mode {clip_only,dual_agent,claude_only_stub}   (required)
+--queries PATH               JSONL benchmark file
+--config PATH                Optional JSON config (CLI flags override values)
+--output-dir DIR             Where artefacts are written
+--seed INT                   RNG seed; deterministic stand-ins use this
+--tau-high FLOAT             Router high-confidence threshold (default 0.32)
+--tau-low FLOAT              Router low-confidence threshold (default 0.24)
+--max-escalations INT        Max frames escalated per query (default 5)
+--corpus-size INT            Total frames in the corpus (default 36000)
+--retrieval-top-k INT        How many frames CLIP returns per query (default 20)
+-v, --verbose                DEBUG-level logging
 ```
 
 ---
 
 ## Reproducibility
 
-Ensure deterministic results by using the same seed:
+The harness seeds a single `random.Random(seed)` once at the start of
+`BenchmarkRunner.run()`. Per-query RNGs are derived from that root plus
+`query_id`, so adding or removing a query does not change the results
+for other queries.
+
+Real components (CLIP, Router, Claude) are passed in via the
+`BenchmarkRunner(config, retriever=…, router=…, reasoner=…)` constructor;
+when omitted, deterministic stand-ins keyed by the seed take over. Two
+runs with the same `--seed`, `--mode`, and `--queries` will produce
+identical aggregate JSON content (modulo the embedded timestamp).
+
+---
+
+## Tests
 
 ```bash
-# Run 1
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent --seed 42
-
-# Run 2 (identical results)
-python -m src.eval --queries evals/queries.example.jsonl --mode dual_agent --seed 42
+pytest tests/eval/ -v
 ```
 
----
-
-## Documentation
-
-- **Full WP6 documentation:** docs/work_packages/wp6_eval_harness.md
-- **Metric definitions:** See WP6 doc (Recall@K, nDCG, privacy metrics)
-- **Data models:** src/eval/models.py (EvaluationConfig, QueryResult, AggregateMetrics)
-- **Metric functions:** src/eval/metrics.py (pure, testable functions)
-- **Harness implementation:** src/eval/harness.py (BenchmarkEvaluator)
+`tests/eval/test_metrics.py` locks in the precise semantics of every
+metric function. `tests/eval/test_harness.py` checks that runs are
+deterministic, all four artefacts are written, and the
+`claude_only_stub` privacy denominator is bounded.
 
 ---
 
-**Last Updated:** 2026-05-21  
-**Status:** ✅ Complete (WP6)  
-**Author:** Koby Lev
+## Related
+
+- [`../src/eval/`](../src/eval/) — implementation.
+- [`../docs/work_packages/wp6_eval_harness.md`](../docs/work_packages/wp6_eval_harness.md) — architecture & metric definitions in depth.
+- [`../src/router/core.py`](../src/router/core.py) — the real `BudgetAwareRouter` whose thresholds the stand-in mirrors.
+- [`../src/reasoner/claude_engine.py`](../src/reasoner/claude_engine.py) — the real Claude Haiku 4.5 client.

@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "mode": "clip_only",
+    "timestamp": "2026-05-21T17:46:02.079852+00:00",
+    "total_queries": 5
+  },
+  "retrieval_metrics": {
+    "recall_at_1": 0.24166666666666664,
+    "recall_at_5": 0.5866666666666667,
+    "recall_at_10": 0.59,
+    "precision_at_5": 0.44000000000000006,
+    "precision_at_10": 0.24,
+    "f1_at_5": 0.4597557997557997,
+    "mrr": 0.9,
+    "ndcg_at_5": 0.683590650660556,
+    "ndcg_at_10": 0.6723209022180174
+  },
+  "routing_metrics": {
+    "immediate_match": 0,
+    "escalated": 0,
+    "dropped": 0,
+    "clip_only": 5,
+    "claude_only": 0,
+    "avg_frames_escalated_per_query": 0.0
+  },
+  "privacy_metrics": {
+    "total_queries": 5,
+    "queries_resolved_on_prem": 5,
+    "fraction_queries_on_prem": 1.0,
+    "total_frames_in_corpus": 36000,
+    "unique_frames_escalated": 0,
+    "total_frame_escalations": 0,
+    "fraction_frames_on_prem": 1.0
+  },
+  "cost_metrics": {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_estimated_cost_usd": 0.0,
+    "computed_cost_usd": 0.0,
+    "pricing": {
+      "input_per_1m_usd": 1.0,
+      "output_per_1m_usd": 5.0
+    }
+  },
+  "latency_metrics": {
+    "retriever": {
+      "mean_ms": 51.121836384060664,
+      "p95_ms": 58.386782830622685
+    },
+    "router": {
+      "mean_ms": 0.0,
+      "p95_ms": 0.0
+    },
+    "reasoner": {
+      "mean_ms": 0.0,
+      "p95_ms": 0.0
+    },
+    "total": {
+      "mean_ms": 51.121836384060664,
+      "p95_ms": 58.386782830622685
+    }
+  },
+  "config": {
+    "mode": "clip_only",
+    "queries_file": "evals/queries.example.jsonl",
+    "output_dir": "evals/results",
+    "seed": 42,
+    "tau_high": 0.32,
+    "tau_low": 0.24,
+    "max_escalations": 5,
+    "corpus_size": 36000,
+    "retrieval_top_k": 20,
+    "price_per_1m_input_tokens": 1.0,
+    "price_per_1m_output_tokens": 5.0,
+    "cost_per_escalated_image": 0.0003,
+    "stub_input_tokens_per_query": 75000,
+    "stub_output_tokens_per_query": 2000,
+    "stub_latency_ms": 1500.0
+  }
+}

@@ -1,254 +1,167 @@
-"""
-WP6 - Evaluation Harness: Metric Computation
---------------------------------------------
-Pure functions for computing retrieval quality metrics, privacy metrics,
-and cost metrics. All functions are deterministic and testable.
+"""WP6 - Evaluation Harness: pure metric functions.
+
+Every function here is deterministic and side-effect free, which is what
+makes them unit-testable in `tests/eval/test_metrics.py`. They never reach
+into the harness or do I/O — the caller passes in plain Python lists.
+
+Retrieval metric conventions
+----------------------------
+* `relevant_set`  — the set of *corpus indices* (ints) that count as relevant
+  ground truth for a query.
+* `ranked_indices` — the *corpus indices* the system returned, in rank order
+  (highest-confidence first, position 0 = top hit).
+* `total_relevant` — the denominator for Recall@K. May be larger than
+  `len(relevant_set)` when the annotator enumerated only a subset of truly
+  relevant frames.
 """
 
-from typing import List, Dict, Tuple
+from __future__ import annotations
+
 import math
+from typing import Dict, Iterable, List, Sequence, Set
 
 
-# ============================================================================
-# Retrieval Quality Metrics
-# ============================================================================
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-def recall_at_k(relevant_ranks: List[int], k: int) -> float:
+def _hits_in_top_k(relevant_set: Set[int], ranked_indices: Sequence[int], k: int) -> int:
+    """Count items from `relevant_set` appearing in the top `k` of `ranked_indices`."""
+    if k <= 0 or not ranked_indices:
+        return 0
+    top = ranked_indices[:k]
+    return sum(1 for idx in top if idx in relevant_set)
+
+
+def percentile(values: Sequence[float], pct: float) -> float:
+    """Inclusive-rank percentile, matching what the WP5 dashboards report.
+
+    Returns 0.0 for empty input. `pct` is in [0, 100]. Uses linear-rank
+    indexing — equivalent to NumPy's `interpolation='lower'`, so the function
+    has no NumPy dependency and is fully deterministic.
     """
-    Recall@K: Fraction of relevant items that appear in top-K results.
-
-    :param relevant_ranks: List of ranks (0-indexed) where relevant items appear.
-                           Example: [0, 2, 5] means relevant items at positions 1, 3, 6.
-    :param k: Cutoff rank.
-    :return: Recall@K in [0, 1].
-    """
-    if not relevant_ranks:
+    if not values:
         return 0.0
-    relevant_in_top_k = sum(1 for r in relevant_ranks if r < k)
-    return relevant_in_top_k / len(relevant_ranks)
+    if pct <= 0:
+        return float(min(values))
+    if pct >= 100:
+        return float(max(values))
+    ordered = sorted(values)
+    # rank = ceil(pct/100 * n) − 1, clamped into bounds.
+    rank = max(0, math.ceil((pct / 100.0) * len(ordered)) - 1)
+    return float(ordered[rank])
 
 
-def precision_at_k(relevant_ranks: List[int], k: int) -> float:
+def mean(values: Sequence[float]) -> float:
+    return float(sum(values) / len(values)) if values else 0.0
+
+
+# ---------------------------------------------------------------------------
+# Retrieval-quality metrics (per-query)
+# ---------------------------------------------------------------------------
+
+def recall_at_k(
+    relevant_set: Iterable[int],
+    ranked_indices: Sequence[int],
+    k: int,
+    total_relevant: int = 0,
+) -> float:
+    """Fraction of ground-truth-relevant items that appear in the top K.
+
+    Denominator is `total_relevant` if provided and positive, otherwise
+    `len(relevant_set)`. Returns 0.0 when the denominator is zero — a
+    query with no ground truth contributes nothing to Recall@K and is
+    expected to be filtered out by the caller in aggregation.
     """
-    Precision@K: Fraction of top-K results that are relevant.
-
-    :param relevant_ranks: List of ranks (0-indexed) where relevant items appear.
-    :param k: Cutoff rank.
-    :return: Precision@K in [0, 1].
-    """
-    if not relevant_ranks:
+    rel = set(relevant_set)
+    denom = total_relevant if total_relevant > 0 else len(rel)
+    if denom <= 0:
         return 0.0
-    relevant_in_top_k = sum(1 for r in relevant_ranks if r < k)
-    return relevant_in_top_k / k
+    return _hits_in_top_k(rel, ranked_indices, k) / denom
 
 
-def f1_at_k(relevant_ranks: List[int], k: int) -> float:
-    """
-    F1@K: Harmonic mean of Precision@K and Recall@K.
+def precision_at_k(
+    relevant_set: Iterable[int],
+    ranked_indices: Sequence[int],
+    k: int,
+) -> float:
+    """Fraction of top-K results that are relevant. Denominator is K."""
+    if k <= 0:
+        return 0.0
+    rel = set(relevant_set)
+    return _hits_in_top_k(rel, ranked_indices, k) / k
 
-    :param relevant_ranks: List of ranks (0-indexed) where relevant items appear.
-    :param k: Cutoff rank.
-    :return: F1@K in [0, 1].
-    """
-    p = precision_at_k(relevant_ranks, k)
-    r = recall_at_k(relevant_ranks, k)
 
+def f1_at_k(
+    relevant_set: Iterable[int],
+    ranked_indices: Sequence[int],
+    k: int,
+    total_relevant: int = 0,
+) -> float:
+    """Harmonic mean of Precision@K and Recall@K."""
+    p = precision_at_k(relevant_set, ranked_indices, k)
+    r = recall_at_k(relevant_set, ranked_indices, k, total_relevant)
     if p + r == 0:
         return 0.0
-    return 2 * (p * r) / (p + r)
+    return 2 * p * r / (p + r)
 
 
-def mean_reciprocal_rank(relevant_ranks: List[int]) -> float:
+def reciprocal_rank(
+    relevant_set: Iterable[int],
+    ranked_indices: Sequence[int],
+) -> float:
+    """1 / (1-indexed rank of the first relevant hit). 0.0 if no hit."""
+    rel = set(relevant_set)
+    for i, idx in enumerate(ranked_indices):
+        if idx in rel:
+            return 1.0 / (i + 1)
+    return 0.0
+
+
+def ndcg_at_k(
+    relevant_set: Iterable[int],
+    ranked_indices: Sequence[int],
+    k: int,
+) -> float:
+    """Binary-relevance nDCG@K.
+
+    DCG@K = Σ rel_i / log2(i + 2)  for i in [0, k)
+    IDCG@K = DCG of the perfect ranking (all relevant items first).
     """
-    MRR: Mean of 1 / rank for the first relevant item in each query.
-
-    :param relevant_ranks: List of ranks (0-indexed) where relevant items appear.
-    :return: MRR in [0, 1].
-    """
-    if not relevant_ranks:
+    if k <= 0:
         return 0.0
-    # Rank is 1-indexed for user interpretation
-    first_relevant_rank_1indexed = relevant_ranks[0] + 1
-    return 1.0 / first_relevant_rank_1indexed
-
-
-def ndcg_at_k(scores: List[float], relevance_labels: List[int], k: int) -> float:
-    """
-    nDCG@K: Normalized Discounted Cumulative Gain.
-
-    Measures ranking quality considering both position and relevance degree.
-    Higher positions are discounted less; irrelevant items contribute 0.
-
-    :param scores: List of similarity scores (one per retrieved item, in rank order).
-    :param relevance_labels: List of relevance labels (0 or 1) corresponding to scores.
-    :param k: Cutoff rank.
-    :return: nDCG@K in [0, 1].
-    """
-    assert len(scores) == len(relevance_labels), "Scores and labels must have same length."
-
-    # Compute DCG@K
+    rel = set(relevant_set)
     dcg = 0.0
-    for i in range(min(k, len(scores))):
-        rel = relevance_labels[i]
-        # Standard DCG formula: rel / log2(i+2) where i is 0-indexed
-        dcg += rel / math.log2(i + 2)
-
-    # Compute ideal DCG (IDCG) assuming perfect ranking
-    sorted_labels = sorted(relevance_labels, reverse=True)
-    idcg = 0.0
-    for i in range(min(k, len(sorted_labels))):
-        rel = sorted_labels[i]
-        idcg += rel / math.log2(i + 2)
-
-    if idcg == 0:
+    for i, idx in enumerate(ranked_indices[:k]):
+        if idx in rel:
+            dcg += 1.0 / math.log2(i + 2)
+    # Ideal: all relevant items packed at the top, up to k.
+    ideal_hits = min(len(rel), k)
+    if ideal_hits == 0:
         return 0.0
+    idcg = sum(1.0 / math.log2(i + 2) for i in range(ideal_hits))
     return dcg / idcg
 
 
-# ============================================================================
-# Privacy Metrics
-# ============================================================================
+# ---------------------------------------------------------------------------
+# Aggregation helpers
+# ---------------------------------------------------------------------------
 
-def fraction_queries_on_prem(
-    query_results: List[Dict],
-    corpus_size: int
-) -> Tuple[float, int, int]:
-    """
-    Compute fraction of queries resolved entirely on-premise (no cloud escalation).
-
-    :param query_results: List of query result dicts with 'frames_escalated' key.
-    :param corpus_size: Total frames in video corpus.
-    :return: (fraction, count_on_prem, total_queries)
-    """
-    total = len(query_results)
-    if total == 0:
-        return 0.0, 0, 0
-
-    on_prem_count = sum(1 for qr in query_results if qr.get("frames_escalated", 0) == 0)
-    return on_prem_count / total, on_prem_count, total
-
-
-def fraction_frames_on_prem(
-    query_results: List[Dict],
-    corpus_size: int
-) -> Tuple[float, int, int]:
-    """
-    Compute fraction of video frames never sent to cloud.
-
-    :param query_results: List of query result dicts with 'frames_escalated' key.
-    :param corpus_size: Total frames in video corpus (e.g., 36000 for 10h @ 1fps).
-    :return: (fraction_on_prem, frames_escalated_total, corpus_size)
-    """
-    if corpus_size == 0:
-        return 0.0, 0, 0
-
-    total_escalated = sum(qr.get("frames_escalated", 0) for qr in query_results)
-    fraction = 1.0 - (total_escalated / corpus_size)
-    return fraction, total_escalated, corpus_size
-
-
-# ============================================================================
-# Aggregation Helpers
-# ============================================================================
-
-def aggregate_retrieval_metrics(
-    query_results: List[Dict],
-    k_values: List[int] = [1, 5, 10]
+def aggregate_retrieval(
+    per_query: List[Dict[str, float]],
 ) -> Dict[str, float]:
+    """Mean per-query retrieval metrics into the aggregate row.
+
+    Expects each dict to carry keys: recall_at_1, recall_at_5, recall_at_10,
+    precision_at_5, precision_at_10, f1_at_5, mrr, ndcg_at_5, ndcg_at_10.
+    Missing keys default to 0.0 so the function is safe to call on partial
+    runs (e.g. claude_only_stub which has no ranking data).
     """
-    Aggregate retrieval metrics across all queries.
-
-    Assumes query_results have 'relevant_ranks' key (list of 0-indexed ranks).
-
-    :param query_results: List of query result dicts.
-    :param k_values: Cutoff values to compute.
-    :return: Dictionary of aggregated metrics.
-    """
-    recalls = {f"recall_at_{k}": [] for k in k_values}
-    precisions = {f"precision_at_{k}": [] for k in k_values}
-    f1s = {f"f1_at_{k}": [] for k in k_values}
-    mrrs = []
-
-    for qr in query_results:
-        relevant_ranks = qr.get("relevant_ranks", [])
-
-        for k in k_values:
-            recalls[f"recall_at_{k}"].append(recall_at_k(relevant_ranks, k))
-            precisions[f"precision_at_{k}"].append(precision_at_k(relevant_ranks, k))
-            f1s[f"f1_at_{k}"].append(f1_at_k(relevant_ranks, k))
-
-        mrrs.append(mean_reciprocal_rank(relevant_ranks))
-
-    # Compute means
-    result = {}
-    for k, vals in recalls.items():
-        result[k] = sum(vals) / len(vals) if vals else 0.0
-    for k, vals in precisions.items():
-        result[k] = sum(vals) / len(vals) if vals else 0.0
-    for k, vals in f1s.items():
-        result[k] = sum(vals) / len(vals) if vals else 0.0
-
-    result["mrr"] = sum(mrrs) / len(mrrs) if mrrs else 0.0
-
-    return result
-
-
-def aggregate_latency_metrics(
-    query_results: List[Dict]
-) -> Dict[str, float]:
-    """
-    Aggregate latency metrics (mean and percentiles).
-
-    :param query_results: List of query result dicts with latency fields.
-    :return: Dictionary of aggregated latency stats.
-    """
-    clip_latencies = [qr.get("clip_latency_ms", 0.0) for qr in query_results]
-    reasoner_latencies = [qr.get("reasoner_latency_ms", 0.0) for qr in query_results]
-    total_latencies = [qr.get("total_latency_ms", 0.0) for qr in query_results]
-
-    def percentile(values, p):
-        if not values:
-            return 0.0
-        sorted_vals = sorted(values)
-        idx = int((p / 100.0) * len(sorted_vals))
-        return sorted_vals[min(idx, len(sorted_vals) - 1)]
-
-    return {
-        "clip_mean_ms": sum(clip_latencies) / len(clip_latencies) if clip_latencies else 0.0,
-        "clip_p95_ms": percentile(clip_latencies, 95),
-        "reasoner_mean_ms": sum(reasoner_latencies) / len(reasoner_latencies) if reasoner_latencies else 0.0,
-        "reasoner_p95_ms": percentile(reasoner_latencies, 95),
-        "total_mean_ms": sum(total_latencies) / len(total_latencies) if total_latencies else 0.0,
-        "total_p95_ms": percentile(total_latencies, 95),
-    }
-
-
-def aggregate_cost_metrics(
-    query_results: List[Dict],
-    price_per_1m_input: float = 1.00,
-    price_per_1m_output: float = 5.00,
-) -> Dict[str, float]:
-    """
-    Aggregate token usage and cost.
-
-    :param query_results: List of query result dicts with token fields.
-    :param price_per_1m_input: Price per million input tokens (Claude Haiku 4.5).
-    :param price_per_1m_output: Price per million output tokens.
-    :return: Dictionary of cost aggregates.
-    """
-    total_input = sum(qr.get("input_tokens", 0) for qr in query_results)
-    total_output = sum(qr.get("output_tokens", 0) for qr in query_results)
-
-    input_cost = (total_input / 1_000_000) * price_per_1m_input
-    output_cost = (total_output / 1_000_000) * price_per_1m_output
-    total_cost = input_cost + output_cost
-
-    num_queries = len(query_results)
-    cost_per_query = total_cost / num_queries if num_queries > 0 else 0.0
-
-    return {
-        "total_input_tokens": total_input,
-        "total_output_tokens": total_output,
-        "total_cost_usd": total_cost,
-        "cost_per_query_usd": cost_per_query,
-    }
+    keys = (
+        "recall_at_1", "recall_at_5", "recall_at_10",
+        "precision_at_5", "precision_at_10",
+        "f1_at_5", "mrr", "ndcg_at_5", "ndcg_at_10",
+    )
+    if not per_query:
+        return {k: 0.0 for k in keys}
+    return {k: mean([q.get(k, 0.0) for q in per_query]) for k in keys}
