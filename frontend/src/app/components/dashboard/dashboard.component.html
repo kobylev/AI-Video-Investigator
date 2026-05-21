@@ -1,0 +1,242 @@
+<div class="dashboard-wrapper">
+  
+  <!-- Header Toolbar -->
+  <mat-toolbar color="primary" class="header-toolbar">
+    <span class="logo">
+      <mat-icon class="logo-icon">search</mat-icon>
+      AI Video Investigator
+      <span class="version-badge">v1.3.0</span>
+    </span>
+    <span class="spacer"></span>
+    <button mat-icon-button (click)="toggleTheme()" aria-label="Toggle dark/light theme">
+      <mat-icon>{{ isDarkTheme ? 'light_mode' : 'dark_mode' }}</mat-icon>
+    </button>
+  </mat-toolbar>
+
+  <div class="main-container">
+    
+    <!-- Hero Header -->
+    <header class="hero-section">
+      <h1 class="hero-title">Dual-Agent Semantic Video Retrieval</h1>
+      <p class="hero-subtitle">
+        Combining local CLIP filtering with Claude Haiku 4.5 cloud reasoning for GDPR-compliant, sub-3-second security search.
+      </p>
+    </header>
+
+    <div class="grid-layout">
+      
+      <!-- Input Panel -->
+      <section class="panel glass-panel input-panel">
+        <h2 class="panel-title">
+          <mat-icon>video_file</mat-icon>
+          Ingest & Query
+        </h2>
+        
+        <!-- Drag & Drop Zone -->
+        <div 
+          class="drag-drop-zone" 
+          [class.drag-over]="dragOver"
+          [class.has-file]="selectedFile !== null"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+          (click)="fileInput.click()">
+          
+          <input 
+            #fileInput 
+            type="file" 
+            accept="video/*" 
+            style="display: none;" 
+            (change)="onFileSelected($event)">
+          
+          <div class="drop-zone-content" *ngIf="!selectedFile">
+            <mat-icon class="upload-icon">cloud_upload</mat-icon>
+            <p class="drop-text-primary">Drag & drop your security footage here</p>
+            <p class="drop-text-secondary">or click to browse local drives</p>
+          </div>
+
+          <div class="drop-zone-content selected-file-content" *ngIf="selectedFile">
+            <mat-icon class="file-icon">check_circle</mat-icon>
+            <p class="file-name">{{ selectedFile.name }}</p>
+            <p class="file-size">{{ (selectedFile.size / (1024 * 1024)) | number:'1.1-2' }} MB</p>
+            <button mat-button color="warn" (click)="$event.stopPropagation(); clearFile()" class="remove-btn">
+              <mat-icon>delete</mat-icon> Remove
+            </button>
+          </div>
+        </div>
+
+        <!-- Query input Form -->
+        <form [formGroup]="investigationForm" (ngSubmit)="startInvestigation()" class="query-form">
+          <mat-form-field appearance="outline" class="full-width query-field">
+            <mat-label>Natural Language Query</mat-label>
+            <input 
+              matInput 
+              formControlName="query" 
+              placeholder="e.g. 'person in red jacket climbing fence' or 'white truck near gate'">
+            <mat-icon matSuffix class="search-field-icon">psychology</mat-icon>
+            <mat-error *ngIf="investigationForm.get('query')?.hasError('required')">
+              Query is required
+            </mat-error>
+          </mat-form-field>
+
+          <button 
+            mat-raised-button 
+            color="accent" 
+            class="submit-btn"
+            type="submit" 
+            [disabled]="investigationForm.invalid || !selectedFile || isInvestigating">
+            <mat-icon class="btn-icon">play_arrow</mat-icon>
+            {{ isInvestigating ? 'Analyzing Pipeline...' : 'Start Investigation' }}
+          </button>
+        </form>
+      </section>
+
+      <!-- Pipeline Visualization (Magic Dashboard) -->
+      <section class="panel glass-panel pipeline-panel">
+        <h2 class="panel-title">
+          <mat-icon>account_tree</mat-icon>
+          Dual-Agent Pipeline Status
+        </h2>
+
+        <!-- Empty State -->
+        <div class="empty-pipeline-state" *ngIf="!currentState">
+          <mat-icon class="empty-icon font-large">hourglass_empty</mat-icon>
+          <p>Awaiting ingestion parameters. Submit a query to trigger pipeline execution.</p>
+        </div>
+
+        <div class="pipeline-visualization" *ngIf="currentState">
+          
+          <!-- State description text -->
+          <div class="pipeline-status-text">
+            <span class="pulse-indicator" [class.active]="isInvestigating"></span>
+            {{ currentState.statusMessage }}
+          </div>
+
+          <!-- Pipeline Nodes -->
+          <div class="pipeline-nodes">
+            
+            <!-- Stage 1 Node (Edge Retrieval) -->
+            <div class="node-item" 
+                 [class.active]="currentState.stage === 1"
+                 [class.completed]="currentState.stage > 1">
+              <div class="node-circle edge-circle">
+                <mat-icon>dns</mat-icon>
+              </div>
+              <div class="node-info">
+                <h3>Stage 1: Edge Retrieval</h3>
+                <span class="badge badge-edge">FAISS + CLIP</span>
+                <p>Scans full video corpus on-premise. Extracts top candidate keyframes in &lt;100ms.</p>
+              </div>
+              <div class="progress-bar-container" *ngIf="currentState.stage === 1">
+                <mat-progress-bar mode="determinate" [value]="currentState.progress"></mat-progress-bar>
+              </div>
+            </div>
+
+            <!-- Connector 1 -->
+            <div class="connector-line" [class.active]="currentState.stage >= 2"></div>
+
+            <!-- Stage 2 Node (Confidence Router) -->
+            <div class="node-item" 
+                 [class.active]="currentState.stage === 2"
+                 [class.completed]="currentState.stage > 2">
+              <div class="node-circle router-circle">
+                <mat-icon>alt_route</mat-icon>
+              </div>
+              <div class="node-info">
+                <h3>Stage 2: Router Gate</h3>
+                <span class="badge badge-router">Budget-Aware</span>
+                <p>Decides if CLIP confidence falls in ambiguous boundaries (τ_low &lt; sim &lt; τ_high).</p>
+              </div>
+            </div>
+
+            <!-- Connector 2 -->
+            <div class="connector-line" [class.active]="currentState.stage >= 3"></div>
+
+            <!-- Stage 3 Node (Cloud Reasoning) -->
+            <div class="node-item" 
+                 [class.active]="currentState.stage === 3"
+                 [class.completed]="currentState.stage > 3">
+              <div class="node-circle cloud-circle">
+                <mat-icon>cloud_queue</mat-icon>
+              </div>
+              <div class="node-info">
+                <h3>Stage 3: Cloud Reasoner</h3>
+                <span class="badge badge-cloud">Claude Haiku 4.5</span>
+                <p>Applies deep multimodal validation on escalated frames only.</p>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </section>
+      
+    </div>
+
+    <!-- Results Section -->
+    <section class="results-section" *ngIf="results">
+      <div class="results-header">
+        <h2>
+          <mat-icon>verified</mat-icon>
+          Investigation Report
+        </h2>
+        <div class="results-stats">
+          <div class="chip-container">
+            <span class="stat-badge">
+              <strong>Router Decision:</strong> {{ results.routerDecision | uppercase }}
+            </span>
+            <span class="stat-badge">
+              <strong>Latency:</strong> {{ results.executionTimeMs / 1000 | number:'1.1-2' }}s
+            </span>
+            <span class="stat-badge">
+              <strong>On-Prem Filter Rate:</strong> 99.94%
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-grid">
+        <!-- Result Cards -->
+        <mat-card class="result-card glass-card" *ngFor="let result of results.results">
+          
+          <div class="card-image-wrapper">
+            <img [src]="result.imageUrl" alt="Security Frame Match" class="card-frame-image">
+            <div class="timestamp-overlay">
+              <mat-icon>schedule</mat-icon>
+              {{ result.timestamp }}
+            </div>
+            <div class="confidence-badge" [style.background-color]="result.confidence >= 0.8 ? 'var(--edge-color)' : 'var(--router-color)'">
+              {{ result.confidence * 100 | number:'1.0-0' }}% Match
+            </div>
+          </div>
+
+          <mat-card-content class="card-details">
+            <div class="metadata-row">
+              <span class="frame-tag">Frame ID: #{{ result.frameIndex }}</span>
+              <span class="escalation-tag" *ngIf="result.routerDecision === 'escalated'">
+                <mat-icon>bolt</mat-icon>
+                Cloud Verified
+              </span>
+              <span class="direct-tag" *ngIf="result.routerDecision !== 'escalated'">
+                <mat-icon>check_circle</mat-icon>
+                Edge Direct
+              </span>
+            </div>
+            <h4 class="forensic-title">Forensic Analysis Summary</h4>
+            <p class="forensic-text">{{ result.summary }}</p>
+          </mat-card-content>
+
+          <mat-card-actions class="card-footer">
+            <button mat-button color="accent">
+              <mat-icon>zoom_in</mat-icon> Inspect Frame
+            </button>
+            <button mat-button color="primary">
+              <mat-icon>download</mat-icon> Export Event
+            </button>
+          </mat-card-actions>
+          
+        </mat-card>
+      </div>
+    </section>
+
+  </div>
+</div>

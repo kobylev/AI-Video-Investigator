@@ -1,0 +1,17 @@
+/* Global styles and Material prebuilt theme integration */
+@import "@angular/material/prebuilt-themes/indigo-pink.css";
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--bg-primary, #05070f);
+  overflow-x: hidden;
+  transition: background-color 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+}

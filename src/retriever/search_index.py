@@ -56,7 +56,7 @@ class VectorSearchIndex:
         idx_p, meta_p = self._get_paths(video_path)
         self.index = faiss.read_index(idx_p)
         with open(meta_p, 'rb') as f:
-            self.metadata = pickle.dump = pickle.load(f)
+            self.metadata = pickle.load(f)
         print(f"[*] Loaded cached index: {idx_p} ({len(self.metadata)} frames)")
 
     def search(self, query_embedding: torch.Tensor, top_k: int = 10) -> List[Dict[str, Any]]:
