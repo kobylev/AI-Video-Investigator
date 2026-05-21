@@ -1,0 +1,4 @@
+mode,total_queries,recall_at_5,f1_at_5,mrr,ndcg_at_5,fraction_queries_on_prem,fraction_frames_on_prem,total_estimated_cost_usd,cost_per_query_usd,total_mean_ms,total_p95_ms,reasoner_mean_ms,source_file
+clip_only,5,0.5867,0.4598,0.9,0.6836,1.0,1.0,0.0,0.0,51.12,58.39,0.0,aggregate_clip_only_20260521_210020.json
+dual_agent,5,0.5867,0.4598,0.9,0.6836,0.8,0.999861,0.00295,0.00059,111.0,347.75,57.35,aggregate_dual_agent_20260521_210021.json
+claude_only_stub,5,0.7417,0.6267,1.0,1.0,0.0,0.0,0.425,0.085,1500.0,1500.0,1500.0,aggregate_claude_only_stub_20260521_210021.json

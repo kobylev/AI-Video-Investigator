@@ -155,6 +155,45 @@ identical aggregate JSON content (modulo the embedded timestamp).
 
 ---
 
+## Generating presentation charts
+
+Once you have at least one `aggregate_<mode>_<ts>.json` for each mode you
+want to show, render slide-ready charts with:
+
+```bash
+python -m src.eval.visualize --results-dir evals/results --latest-per-mode
+```
+
+Outputs land in `evals/results/charts/`:
+
+| File | Purpose |
+| --- | --- |
+| `quality.png`    | Recall@5 / F1@5 / MRR / nDCG@5 grouped by mode. |
+| `privacy.png`    | Fraction of queries and unique frames kept on-prem. |
+| `cost.png`       | USD per query, with the dual-agent vs. simulated-stub ratio called out in the subtitle. |
+| `latency.png`    | End-to-end mean vs. reasoner mean latency per mode. |
+| `scorecard.png`  | Normalised radar over quality / privacy / cost-efficiency / speed. |
+| `wp6_presentation_summary.csv` | One row per mode with the same numbers as the charts, for the appendix slide. |
+
+Every chart subtitle calls out that `claude_only_stub` is a simulated
+upper-bound baseline rather than a live system. The chart code is
+deterministic — same inputs produce the same PNGs.
+
+Useful flags:
+
+```
+--results-dir DIR      Directory to scan for aggregate_*.json (default: evals/results)
+--output-dir DIR       Where to write charts (default: <results-dir>/charts/)
+--scale FLOAT          Plotly PNG export scale factor (default 2.0 → 2560×1440)
+-v, --verbose          DEBUG-level logging
+```
+
+If a mode has no aggregate file in the results directory, the visualiser
+logs a warning and continues. If *zero* modes resolve the CLI exits with
+status 2.
+
+---
+
 ## Tests
 
 ```bash

@@ -22,9 +22,21 @@
       "Bash(python -m src.eval.run_benchmark --queries evals/queries.example.jsonl --mode claude_only_stub --seed 42 --output-dir evals/results --corpus-size 36000)",
       "Bash(python -m pytest tests/eval/ -v)",
       "Bash(python -c \"import csv; r = list\\(csv.DictReader\\(open\\('evals/results/queries_dual_agent_20260521_202701.csv', encoding='utf-8'\\)\\)\\); print\\('rows:', len\\(r\\)\\); print\\('cols:', list\\(r[0].keys\\(\\)\\)\\); print\\('sample row:'\\); [print\\(' ', k, '=', v\\) for k,v in r[0].items\\(\\)]\")",
-      "Bash(python -m pytest tests/eval/ -q)"
+      "Bash(python -m pytest tests/eval/ -q)",
+      "Bash(python -c \"import plotly; print\\('plotly', plotly.__version__\\)\")",
+      "Bash(python -c \"import kaleido; print\\('kaleido', kaleido.__version__\\)\")",
+      "Bash(python -c \"import kaleido; print\\('kaleido import ok'\\)\")",
+      "Bash(python -c \"import plotly.io as pio; fig=__import__\\('plotly'\\).graph_objects.Figure\\(\\); fig.add_bar\\(x=['a'], y=[1]\\); pio.write_image\\(fig, 'tmp_kaleido_test.png'\\); import os; print\\('size:', os.path.getsize\\('tmp_kaleido_test.png'\\)\\)\")",
+      "Bash(python -m src.eval.visualize --results-dir evals/results)",
+      "Bash(mkdir -p /tmp/missing_test)",
+      "Bash(cp evals/results/aggregate_dual_agent_20260521_210021.json /tmp/missing_test/)",
+      "Bash(python -m src.eval.visualize --results-dir /tmp/missing_test --output-dir /tmp/missing_test/charts)",
+      "Bash(rm -rf /tmp/missing_test && ls evals/results/charts/)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
   }
 }

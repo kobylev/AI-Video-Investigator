@@ -37,6 +37,8 @@ src/eval/
 ├── io.py                # JSONL loading + JSON/CSV result writing.
 ├── modes.py             # Per-mode adapters (clip_only / dual_agent / claude_only_stub).
 ├── harness.py           # BenchmarkRunner orchestration + aggregation.
+├── plots.py             # Plotly figure builders (one per chart).
+├── visualize.py         # CLI that renders the latest-per-mode chart bundle.
 └── run_benchmark.py     # CLI entry point.
 ```
 
@@ -277,6 +279,45 @@ point).
   content (the embedded timestamp is the only varying field).
 - The `config` block inside `aggregate_*.json` records every parameter
   the run used, so any artefact alone is enough to re-run it.
+
+---
+
+## 7a. Presentation charts
+
+For the academic defence slides, `src/eval/visualize.py` renders the
+latest per-mode aggregate into five PNGs plus a one-row-per-mode CSV.
+
+```
+python -m src.eval.visualize --results-dir evals/results --latest-per-mode
+```
+
+Artefacts land in `evals/results/charts/`:
+
+| File | What it shows |
+| --- | --- |
+| `quality.png`  | Recall@5 / F1@5 / MRR / nDCG@5 grouped by mode. |
+| `privacy.png`  | Queries-on-prem and unique-frames-on-prem fractions by mode. |
+| `cost.png`     | USD per query with the cascade-vs-stub ratio called out. |
+| `latency.png`  | End-to-end mean vs. reasoner mean latency. |
+| `scorecard.png`| Normalised 4-axis radar over quality / privacy / cost-efficiency / speed. |
+| `wp6_presentation_summary.csv` | Same numbers as the charts, one row per mode. |
+
+Design rules baked into `plots.py`:
+
+- White background, `simple_white` Plotly template, 1280×720 layout
+  exported at 2× scale (2560×1440) for projector / 4K displays.
+- Consistent mode colours: CLIP-only = blue (`#3B82F6`), Dual-Agent =
+  green (`#10B981`), Claude-only stub = neutral grey (`#9CA3AF`).
+- Every chart subtitle explicitly labels `claude_only_stub` as a
+  *simulated upper-bound baseline — not a live system*.
+- Retrieval metrics are labelled "ranking / retrieval metrics" — they
+  measure how the system orders frames, not final-answer correctness.
+- Subtitles are baked into the title via HTML `<br>`s rather than
+  paper-coordinate annotations, which Plotly clips on polar / log
+  layouts.
+
+Missing modes are skipped with a warning; the CLI exits with status 2
+only if no aggregate files resolve at all.
 
 ---
 
