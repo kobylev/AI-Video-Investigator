@@ -18,17 +18,17 @@ The root cause is empirically traceable to the training data of the OpenAI check
 | **Compositional coverage** | Limited; weak on cluttered scenes | Substantially broader; better on rare compositions |
 | **Embedding dimensionality** | 768 (ViT-L/14) | 1024 (ViT-H/14) |
 | **Reproducibility / auditability** | Closed dataset | Fully open, reproducible from the LAION manifest |
-| **Reported ImageNet zero-shot** | 75.5% (ViT-L/14@336) | **78.0% (ViT-H/14, laion2b_s32b_b82k)** |
+| **Reported ImageNet zero-shot** | 75.5% (ViT-L/14@336) | **78.0% (ViT-H/14, laion2b_s32b_b79k)** |
 
 #### V2 Engine Selection
 
-The V2 default checkpoint is **`ViT-H-14` trained on `laion2b_s32b_b82k`** (32 B samples seen, batch size 82 k), loaded via `open_clip.create_model_and_transforms`. This checkpoint was selected on three criteria:
+The V2 default checkpoint is **`ViT-H-14` trained on `laion2b_s32b_b79k`** (32 B samples seen, batch size 79 k), loaded via `open_clip.create_model_and_transforms`. Tag verified against `open_clip` 3.3.0's `list_pretrained_tags_by_model("ViT-H-14")` output during the V2.0 smoke test. This checkpoint was selected on three criteria:
 
 1. **Empirical zero-shot strength** on cluttered-scene benchmarks (LAION CLIP-benchmark suite).
 2. **Active community maintenance**, ensuring long-term reproducibility.
 3. **Compatibility** with our existing CPU/GPU deployment posture — `ViT-H-14` runs on the same T4-class enterprise GPUs used in WP4.
 
-For latency-constrained deployments, the V2 plan also validates a fallback to **`ViT-L-14 / laion2b_s32b_b82k`** (768-dim, drop-in dimensionality with the existing FAISS index) — see the A/B Protocol section below.
+For latency-constrained deployments, the V2 plan also validates a fallback to **`ViT-L-14 / laion2b_s32b_b79k`** (768-dim, drop-in dimensionality with the existing FAISS index) — see the A/B Protocol section below.
 
 #### Architectural Impact
 

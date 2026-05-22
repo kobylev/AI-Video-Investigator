@@ -4,10 +4,11 @@ Drop-in replacement for src.retriever.clip_engine.CLIPEngine. Public interface
 is identical so that FAISS indexing, search, and the WP6 evaluation harness can
 swap engines without modification.
 
-Default checkpoint is ViT-H-14 / laion2b_s32b_b82k. The LAION-2B dataset is
-~7x larger and substantially more diverse than OpenAI's original 400M-pair
-WIT corpus, which is the empirical basis for the precision gains documented
-in docs/V2_OPENCLIP_MIGRATION.md.
+Default checkpoint is ViT-H-14 / laion2b_s32b_b79k (the canonical LAION-2B
+ViT-H/14 release; verified against open_clip 3.3.0's pretrained tag list).
+The LAION-2B dataset is ~7x larger and substantially more diverse than
+OpenAI's original 400M-pair WIT corpus, which is the empirical basis for
+the precision gains documented in docs/V2_OPENCLIP_MIGRATION.md.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ class OpenCLIPEngine:
     def __init__(
         self,
         model_name: str = "ViT-H-14",
-        pretrained: str = "laion2b_s32b_b82k",
+        pretrained: str = "laion2b_s32b_b79k",
     ):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(
