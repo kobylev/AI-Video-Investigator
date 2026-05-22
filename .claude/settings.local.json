@@ -31,7 +31,8 @@
       "Bash(mkdir -p /tmp/missing_test)",
       "Bash(cp evals/results/aggregate_dual_agent_20260521_210021.json /tmp/missing_test/)",
       "Bash(python -m src.eval.visualize --results-dir /tmp/missing_test --output-dir /tmp/missing_test/charts)",
-      "Bash(rm -rf /tmp/missing_test && ls evals/results/charts/)"
+      "Bash(rm -rf /tmp/missing_test && ls evals/results/charts/)",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"c:\\\\Ai_Expert\\\\AI Video Investigator\\\\docs\\\\images\")"
     ],
     "deny": [],
     "ask": [],

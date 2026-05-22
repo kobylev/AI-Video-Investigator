@@ -4,7 +4,7 @@
 >
 > *Combining local CLIP filtering with cloud-based Anthropic reasoning to achieve sub-3-second response times at <$0.10 per query-hour while maintaining GDPR compliance*
 
-**Status:** ✅ WP7 — Summary Report & Documentation | **Next:** WP8 (Defense) | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid
+**Status:** ✅ WP8 — Angular GUI Implemented | **Next:** Project Defense | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid (Full-Stack)
 
 ### Project Milestones Accomplished
 
@@ -17,6 +17,7 @@
 | **WP5** | Cloud | Reasoner & Router Integration | Integrated the Stage 2 Cloud Reasoner via Anthropic's Claude Haiku 4.5 API, controlled by a dynamic confidence-gated router (τ_high, τ_low) and forced JSON tool-use. |
 | **WP6** | Evaluation | Harness & Benchmarks | Built and executed the end-to-end evaluator, confirming >80% on-premise data retention, sub-3-second response latency, and a >90% cost reduction. |
 | **WP7** | Summary | Final Report & Docs | Compiled the comprehensive Final Summary Report (SUMMARY_REPORT.md) and updated all repository documentation to reflect project completion. |
+| **WP8** | Frontend | Angular GUI & Backend Orchestration | Engineered a full-stack Angular Material single-page application featuring drag-and-drop video ingestion, natural-language query input, a Day/Night theming engine, and a real-time visual representation of the Edge-to-Cloud Dual-Agent pipeline; fully integrated with the Python orchestration backend via a streaming REST API. |
 
 ---
 
@@ -459,6 +460,43 @@ for rank, result in enumerate(results, 1):
         print(f"   Claude Rationale: {result.rationale}")
 ```
 
+### Running the UI (WP8)
+
+The WP8 deliverable provides a full-stack Angular Material interface backed by the Python orchestration API. The system must be launched in two coordinated terminals (backend first, frontend second).
+
+#### Terminal 1 — Start the Python Backend API
+
+```bash
+# From the repository root
+# Install backend dependencies (one-time)
+pip install -r requirements.txt
+
+# Launch the FastAPI orchestration service
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The backend exposes the dual-agent pipeline (CLIP edge filter + Claude cloud reasoner) on `http://localhost:8000`, with Swagger documentation available at `http://localhost:8000/docs`.
+
+#### Terminal 2 — Start the Angular Frontend
+
+```bash
+# From the repository root
+cd frontend
+
+# Install Node.js dependencies (one-time)
+npm install
+
+# Launch the Angular development server
+ng serve --open
+```
+
+The UI will open automatically at `http://localhost:4200`, with API calls proxied to the FastAPI backend. From the dashboard, the user may:
+
+1. **Drag-and-drop** a video file onto the upload zone.
+2. Enter a **natural-language query** (e.g., *"red sedan running a red light"*).
+3. Observe the **real-time pipeline visualization** as frames are filtered locally (Edge) and only ambiguous candidates are escalated to the Cloud Reasoner (Claude Haiku 4.5).
+4. Toggle the **Day/Night theme** via the toolbar control for forensic or operations-center viewing conditions.
+
 ---
 
 ## Flagship Reference
@@ -481,5 +519,5 @@ for rank, result in enumerate(results, 1):
 
 ---
 
-**Last Updated:** 2026-05-21
-**Version:** 1.3.0 (WP7 Completed — Summary Report & Documentation)
+**Last Updated:** 2026-05-22
+**Version:** 1.4.0 (WP8 Completed — Angular GUI & Backend Orchestration)
