@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Sequence
@@ -53,6 +54,11 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Total number of frames in the corpus (used for privacy denominators).")
     parser.add_argument("--retrieval-top-k", type=int, default=None,
                         help="How many frames CLIP returns per query.")
+    parser.add_argument("--retriever-backend", default=None,
+                        choices=["openai_hf", "openclip"],
+                        help="V2.0 — Stage 1 retriever engine to inject. "
+                             "Falls back to RETRIEVER_BACKEND env var; if neither "
+                             "is set, the harness uses the deterministic stub.")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Enable DEBUG-level logging.")
     return parser
@@ -141,8 +147,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         logger.error("Queries file not found: %s", config.queries_file)
         return 2
 
+    retriever = None
+    if args.retriever_backend is not None or os.getenv("RETRIEVER_BACKEND"):
+        from src.retriever.factory import build_retriever
+        retriever = build_retriever(backend=args.retriever_backend)
+        logger.info("Injected retriever backend: %s",
+                    args.retriever_backend or os.getenv("RETRIEVER_BACKEND"))
+
     try:
-        runner = BenchmarkRunner(config)
+        runner = BenchmarkRunner(config, retriever=retriever)
         aggregate = runner.run()
     except Exception as exc:
         logger.exception("Benchmark execution failed: %s", exc)
