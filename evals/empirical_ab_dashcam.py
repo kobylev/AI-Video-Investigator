@@ -132,14 +132,23 @@ def main(argv=None) -> int:
                         help="Architecture for both A/B arms (default: b32).")
     parser.add_argument("--batch", type=int, default=None,
                         help="Encoding batch size; defaults per architecture.")
+    parser.add_argument("--v2-pretrained", default=None,
+                        help="Override the V2 (OpenCLIP) pretrained tag. "
+                             "E.g., 'dfn2b_s39b' or 'datacomp_xl_s13b_b90k' "
+                             "for ViT-L-14.")
     parser.add_argument("--output-dir", default=None,
                         help="Where to write the result JSON. "
-                             "Default: evals/results/v1_v2_dashcam_<arch>/.")
+                             "Default: evals/results/v1_v2_dashcam_<arch>[_<v2tag>]/.")
     args = parser.parse_args(argv)
 
-    cfg = ARCH_CONFIG[args.arch]
+    cfg = dict(ARCH_CONFIG[args.arch])
+    if args.v2_pretrained:
+        cfg["v2_pretrained"] = args.v2_pretrained
     batch = args.batch or cfg["default_batch"]
-    output_dir = Path(args.output_dir or f"evals/results/v1_v2_dashcam_{args.arch}")
+    default_output = f"evals/results/v1_v2_dashcam_{args.arch}"
+    if args.v2_pretrained:
+        default_output += f"_{args.v2_pretrained}"
+    output_dir = Path(args.output_dir or default_output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
