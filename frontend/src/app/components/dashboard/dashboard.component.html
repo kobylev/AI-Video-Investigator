@@ -1,4 +1,4 @@
-<div class="dashboard-wrapper">
+<div class="dashboard-wrapper" [style.padding-bottom.px]="showLogConsole ? (panelHeight + 40) : 40">
   
   <!-- Header Toolbar -->
   <mat-toolbar color="primary" class="header-toolbar">
@@ -8,8 +8,35 @@
       <span class="version-badge">v1.3.0</span>
     </span>
     <span class="spacer"></span>
-    <button mat-icon-button (click)="toggleTheme()" aria-label="Toggle dark/light theme">
-      <mat-icon>{{ isDarkTheme ? 'light_mode' : 'dark_mode' }}</mat-icon>
+    
+    <button mat-icon-button [matMenuTriggerFor]="themeMenu" aria-label="Select color theme" matTooltip="Choose Theme color palette" class="theme-picker-btn">
+      <mat-icon>format_color_fill</mat-icon>
+    </button>
+    
+    <mat-menu #themeMenu="matMenu" xPosition="before" class="theme-menu-panel">
+      <div class="theme-menu-header">SELECT THEME</div>
+      <mat-divider></mat-divider>
+      <button mat-menu-item *ngFor="let t of themes" (click)="selectTheme(t)" class="theme-menu-item">
+        <div class="theme-option-row">
+          <mat-icon class="theme-radio-icon">
+            {{ (currentThemeClass === t.class) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+          </mat-icon>
+          <span class="theme-name">{{ t.name }}</span>
+          <span class="spacer"></span>
+          <mat-icon *ngIf="currentThemeClass === t.class" class="theme-mode-icon" [style.color]="isDarkTheme ? '#fbbf24' : '#f97316'" style="font-size: 1.15rem; width: 1.15rem; height: 1.15rem; margin-right: 4px; opacity: 0.85;">
+            {{ isDarkTheme ? 'dark_mode' : 'light_mode' }}
+          </mat-icon>
+          <div class="theme-preview-box" [style.background-color]="isDarkTheme ? t.bgDark : t.bgLight">
+            <div class="preview-color primary" [style.background-color]="t.colors.primary"></div>
+            <div class="preview-color accent" [style.background-color]="t.colors.accent"></div>
+          </div>
+        </div>
+      </button>
+    </mat-menu>
+    
+    <!-- Log Console Toggle Button -->
+    <button mat-icon-button (click)="toggleLogConsole()" aria-label="Toggle log console" [matTooltip]="showLogConsole ? 'Hide Diagnostics Console' : 'Show Diagnostics Console'" class="log-toggle-btn" [class.active]="showLogConsole">
+      <mat-icon>terminal</mat-icon>
     </button>
   </mat-toolbar>
 
@@ -40,7 +67,7 @@
           (dragover)="onDragOver($event)"
           (dragleave)="onDragLeave($event)"
           (drop)="onDrop($event)"
-          (click)="fileInput.click()">
+          (click)="!selectedFile ? fileInput.click() : null">
           
           <input 
             #fileInput 
@@ -49,20 +76,61 @@
             style="display: none;" 
             (change)="onFileSelected($event)">
           
+          <!-- State: No File Loaded -->
           <div class="drop-zone-content" *ngIf="!selectedFile">
             <mat-icon class="upload-icon">cloud_upload</mat-icon>
             <p class="drop-text-primary">Drag & drop your security footage here</p>
             <p class="drop-text-secondary">or click to browse local drives</p>
           </div>
 
-          <div class="drop-zone-content selected-file-content" *ngIf="selectedFile">
-            <mat-icon class="file-icon">check_circle</mat-icon>
-            <p class="file-name">{{ selectedFile.name }}</p>
-            <p class="file-size">{{ (selectedFile.size / (1024 * 1024)) | number:'1.1-2' }} MB</p>
-            <button mat-button color="warn" (click)="$event.stopPropagation(); clearFile()" class="remove-btn">
-              <mat-icon>delete</mat-icon> Remove
-            </button>
+          <!-- State: File Loaded -->
+          <div class="selected-file-container" *ngIf="selectedFile">
+            <div class="selected-file-header">
+              <mat-icon class="file-icon">check_circle</mat-icon>
+              <div class="file-details-text">
+                <p class="file-name">{{ selectedFile.name }}</p>
+                <p class="file-size">{{ (selectedFile.size / (1024 * 1024)) | number:'1.1-2' }} MB</p>
+              </div>
+              <span class="spacer"></span>
+              <button mat-mini-fab color="warn" (click)="$event.stopPropagation(); clearFile()" aria-label="Remove video" matTooltip="Remove Video">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+
+            <!-- Integrated Video Player -->
+            <div class="video-player-wrapper" (click)="$event.stopPropagation()">
+              <video #videoPlayer [src]="selectedVideoUrl" controls class="main-video-player"></video>
+              <div class="video-player-toolbar">
+                <button mat-raised-button color="accent" class="bookmark-now-btn" (click)="bookmarkCurrentTime()">
+                  <mat-icon>bookmark_add</mat-icon>
+                  Bookmark Current Frame
+                </button>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <!-- Bookmarks Section -->
+        <div class="bookmarks-panel" *ngIf="selectedFile && bookmarks.length > 0">
+          <div class="bookmarks-header">
+            <mat-icon class="bookmarks-icon">bookmarks</mat-icon>
+            <h3>Bookmarked Scenes ({{ bookmarks.length }})</h3>
+          </div>
+          <mat-divider></mat-divider>
+          <mat-list class="bookmarks-list">
+            <mat-list-item *ngFor="let b of bookmarks; let i = index" class="bookmark-item">
+              <div class="bookmark-row-content">
+                <button mat-icon-button color="primary" (click)="seekToTimestamp(b.timestamp)" matTooltip="Seek to this moment" class="seek-bookmark-btn">
+                  <mat-icon>play_circle</mat-icon>
+                </button>
+                <span class="bookmark-time" (click)="seekToTimestamp(b.timestamp)">{{ b.timestamp }}</span>
+                <span class="bookmark-query" matTooltip="{{ b.summary }}">{{ b.query }}</span>
+                <button mat-icon-button color="warn" (click)="removeBookmark(i)" matTooltip="Remove bookmark">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </mat-list-item>
+          </mat-list>
         </div>
 
         <!-- Query input Form -->
@@ -79,15 +147,96 @@
             </mat-error>
           </mat-form-field>
 
-          <button 
-            mat-raised-button 
-            color="accent" 
-            class="submit-btn"
-            type="submit" 
-            [disabled]="investigationForm.invalid || !selectedFile || isInvestigating">
-            <mat-icon class="btn-icon">play_arrow</mat-icon>
-            {{ isInvestigating ? 'Analyzing Pipeline...' : 'Start Investigation' }}
-          </button>
+          <!-- Expert Settings Accordion Panel -->
+          <mat-expansion-panel class="expert-settings-panel glass-panel-nested">
+            <mat-expansion-panel-header>
+              <mat-panel-title class="expert-panel-title">
+                <mat-icon>tune</mat-icon>
+                Expert Settings
+              </mat-panel-title>
+              <mat-panel-description>
+                Adjust routing & extraction
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="expert-sliders-container">
+              <!-- Router Threshold Low -->
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span class="slider-label">Router Threshold Low (τ_low)</span>
+                  <span class="slider-value">{{ tauLow | number:'1.2-2' }}</span>
+                </div>
+                <mat-slider min="0.0" max="1.0" step="0.01" discrete class="expert-slider">
+                  <input matSliderThumb [value]="tauLow" (valueChange)="onTauLowChange($event)">
+                </mat-slider>
+              </div>
+
+              <!-- Router Threshold High -->
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span class="slider-label">Router Threshold High (τ_high)</span>
+                  <span class="slider-value">{{ tauHigh | number:'1.2-2' }}</span>
+                </div>
+                <mat-slider min="0.0" max="1.0" step="0.01" discrete class="expert-slider">
+                  <input matSliderThumb [value]="tauHigh" (valueChange)="onTauHighChange($event)">
+                </mat-slider>
+              </div>
+
+              <!-- FPS Rate Control -->
+              <div class="slider-group fps-settings-group">
+                <div class="slider-header">
+                  <span class="slider-label">Frame Rate (FPS)</span>
+                  <span class="slider-value">{{ fps | number:'1.1-1' }} FPS</span>
+                </div>
+                <div class="fps-inputs-container">
+                  <mat-slider min="0.1" max="5.0" step="0.1" discrete class="expert-slider fps-slider">
+                    <input matSliderThumb [value]="fps" (valueChange)="onFpsSliderChange($event)">
+                  </mat-slider>
+                  <mat-form-field appearance="outline" class="fps-number-field">
+                    <mat-label>FPS</mat-label>
+                    <input matInput type="number" step="0.1" min="0.1" max="5.0" [value]="fps" (input)="onFpsInputChange($event)">
+                  </mat-form-field>
+                </div>
+              </div>
+
+              <!-- Free Only Toggle -->
+              <div class="checkbox-group">
+                <mat-checkbox [(ngModel)]="freeOnly" [ngModelOptions]="{standalone: true}" class="free-only-checkbox">
+                  Free Only Mode (Bypass Cloud)
+                </mat-checkbox>
+              </div>
+
+              <div class="expert-actions-row">
+                <button type="button" mat-stroked-button color="primary" (click)="resetExpertSettings()">
+                  <mat-icon>settings_backup_restore</mat-icon>
+                  Reset Defaults
+                </button>
+              </div>
+            </div>
+          </mat-expansion-panel>
+
+          <div class="submit-actions-row">
+            <button 
+              mat-raised-button 
+              color="accent" 
+              class="submit-btn"
+              type="submit" 
+              [disabled]="investigationForm.invalid || !selectedFile || isInvestigating">
+              <mat-icon class="btn-icon" *ngIf="!isInvestigating">play_arrow</mat-icon>
+              <mat-spinner diameter="20" color="primary" class="btn-spinner" *ngIf="isInvestigating"></mat-spinner>
+              {{ isInvestigating ? 'Analyzing Pipeline...' : 'Start Investigation' }}
+            </button>
+            <button
+              *ngIf="isInvestigating"
+              type="button"
+              mat-raised-button
+              color="warn"
+              class="cancel-btn"
+              (click)="cancelInvestigation()">
+              <mat-icon>stop</mat-icon>
+              Cancel
+            </button>
+          </div>
         </form>
       </section>
 
@@ -99,86 +248,86 @@
         </h2>
 
         <!-- Empty State -->
-        <div class="empty-pipeline-state" *ngIf="!currentState">
+        <div class="empty-pipeline-state" *ngIf="!currentState && !isInvestigating">
           <mat-icon class="empty-icon font-large">hourglass_empty</mat-icon>
-          <p>Awaiting ingestion parameters. Submit a query to trigger pipeline execution.</p>
+          <p>Awaiting Ingest parameter settings. Submit a query to trigger pipeline execution.</p>
+        </div>
+
+        <!-- Progress Spinner for active search -->
+        <div class="pipeline-searching-state" *ngIf="isInvestigating && !currentState">
+          <mat-spinner diameter="60" color="accent" class="main-progress-spinner"></mat-spinner>
+          <p>Initializing dual-agent cascade retrieval...</p>
         </div>
 
         <div class="pipeline-visualization" *ngIf="currentState">
           
-          <!-- State description text -->
+          <!-- State description text with Progress Spinner -->
           <div class="pipeline-status-text">
-            <span class="pulse-indicator" [class.active]="isInvestigating"></span>
+            <mat-spinner diameter="20" color="accent" class="status-spinner" *ngIf="isInvestigating"></mat-spinner>
+            <span class="pulse-indicator" [class.active]="isInvestigating" *ngIf="!isInvestigating"></span>
             {{ currentState.statusMessage }}
           </div>
 
-          <!-- Pipeline Nodes -->
-          <div class="pipeline-nodes">
+          <!-- Pipeline Stepper -->
+          <mat-stepper orientation="vertical" [selectedIndex]="currentStepIndex" [linear]="false" class="pipeline-stepper">
             
-            <!-- Stage 1 Node (Edge Retrieval) -->
-            <div class="node-item" 
-                 [class.active]="currentState.stage === 1"
-                 [class.completed]="currentState.stage > 1">
-              <div class="node-circle edge-circle">
-                <mat-icon>dns</mat-icon>
-              </div>
-              <div class="node-info">
-                <h3>Stage 1: Edge Retrieval</h3>
-                <span class="badge badge-edge">FAISS + CLIP</span>
+            <!-- Step 1: Edge Retrieval -->
+            <mat-step [completed]="currentState.stage > 1" [editable]="false">
+              <ng-template matStepLabel>
+                <div class="step-label-header">
+                  <span class="step-title">Stage 1: Edge Retrieval</span>
+                  <span class="badge badge-edge">FAISS + CLIP</span>
+                </div>
+              </ng-template>
+              <div class="step-content">
                 <p>Scans full video corpus on-premise. Extracts top candidate keyframes in &lt;100ms.</p>
+                <div class="progress-bar-container" *ngIf="currentState.stage === 1">
+                  <mat-progress-bar mode="determinate" [value]="currentState.progress"></mat-progress-bar>
+                  <span class="progress-text">{{ currentState.progress }}%</span>
+                </div>
               </div>
-              <div class="progress-bar-container" *ngIf="currentState.stage === 1">
-                <mat-progress-bar mode="determinate" [value]="currentState.progress"></mat-progress-bar>
-              </div>
-            </div>
+            </mat-step>
 
-            <!-- Connector 1 -->
-            <div class="connector-line" [class.active]="currentState.stage >= 2"></div>
-
-            <!-- Stage 2 Node (Confidence Router) -->
-            <div class="node-item" 
-                 [class.active]="currentState.stage === 2"
-                 [class.completed]="currentState.stage > 2">
-              <div class="node-circle router-circle">
-                <mat-icon>alt_route</mat-icon>
-              </div>
-              <div class="node-info">
-                <h3>Stage 2: Router Gate</h3>
-                <span class="badge badge-router">Budget-Aware</span>
+            <!-- Step 2: Router Gate -->
+            <mat-step [completed]="currentState.stage > 2" [editable]="false">
+              <ng-template matStepLabel>
+                <div class="step-label-header">
+                  <span class="step-title">Stage 2: Router Gate</span>
+                  <span class="badge badge-router">Budget-Aware</span>
+                </div>
+              </ng-template>
+              <div class="step-content">
                 <p>Decides if CLIP confidence falls in ambiguous boundaries (τ_low &lt; sim &lt; τ_high).</p>
               </div>
-            </div>
+            </mat-step>
 
-            <!-- Connector 2 -->
-            <div class="connector-line" [class.active]="currentState.stage >= 3"></div>
-
-            <!-- Stage 3 Node (Cloud Reasoning) -->
-            <div class="node-item" 
-                 [class.active]="currentState.stage === 3"
-                 [class.completed]="currentState.stage > 3">
-              <div class="node-circle cloud-circle">
-                <mat-icon>cloud_queue</mat-icon>
-              </div>
-              <div class="node-info">
-                <h3>Stage 3: Cloud Reasoner</h3>
-                <span class="badge badge-cloud">Claude Haiku 4.5</span>
+            <!-- Step 3: Cloud Reasoner -->
+            <mat-step [completed]="currentState.stage > 3" [editable]="false">
+              <ng-template matStepLabel>
+                <div class="step-label-header">
+                  <span class="step-title">Stage 3: Cloud Reasoner</span>
+                  <span class="badge badge-cloud">Claude Haiku 4.5</span>
+                </div>
+              </ng-template>
+              <div class="step-content">
                 <p>Applies deep multimodal validation on escalated frames only.</p>
               </div>
-            </div>
-            
-          </div>
+            </mat-step>
+
+          </mat-stepper>
         </div>
       </section>
       
     </div>
 
     <!-- Results Section -->
-    <section class="results-section" *ngIf="results">
-      <div class="results-header">
-        <h2>
+    <mat-card class="results-section-card glass-card" *ngIf="results">
+      <mat-card-header class="results-card-header">
+        <mat-card-title class="results-card-title">
           <mat-icon>verified</mat-icon>
           Investigation Report
-        </h2>
+        </mat-card-title>
+        <span class="spacer"></span>
         <div class="results-stats">
           <div class="chip-container">
             <span class="stat-badge">
@@ -190,53 +339,97 @@
             <span class="stat-badge">
               <strong>On-Prem Filter Rate:</strong> 99.94%
             </span>
+            <span class="stat-badge" *ngIf="results.tokenUsage && (results.tokenUsage.inputTokens > 0 || results.tokenUsage.outputTokens > 0)">
+              <strong>Tokens:</strong> In: {{ results.tokenUsage.inputTokens | number }} | Out: {{ results.tokenUsage.outputTokens | number }}
+            </span>
+            <span class="stat-badge" *ngIf="results.tokenUsage && (results.tokenUsage.inputTokens > 0 || results.tokenUsage.outputTokens > 0)">
+              <strong>Est. Cost:</strong> ${{ getEstimatedCost(results.tokenUsage) | number:'1.4-4' }}
+            </span>
+          </div>
+        </div>
+      </mat-card-header>
+
+      <mat-card-content class="results-content-area">
+        <div class="results-grid">
+          <!-- Result Cards -->
+          <mat-card class="result-card glass-card" *ngFor="let result of results.results">
+            
+            <div class="card-image-wrapper">
+              <img [src]="result.imageUrl" alt="Security Frame Match" class="card-frame-image">
+              <div class="timestamp-overlay">
+                <mat-icon>schedule</mat-icon>
+                {{ result.timestamp }}
+              </div>
+              <div class="confidence-badge" [style.background-color]="result.confidence >= 0.8 ? 'var(--edge-color)' : 'var(--router-color)'">
+                {{ result.confidence * 100 | number:'1.0-0' }}% Match
+              </div>
+            </div>
+
+            <mat-card-content class="card-details">
+              <div class="metadata-row">
+                <span class="frame-tag">Frame ID: #{{ result.frameIndex }}</span>
+                <span class="escalation-tag" *ngIf="result.routerDecision === 'escalated'">
+                  <mat-icon>bolt</mat-icon>
+                  Cloud Verified
+                </span>
+                <span class="direct-tag" *ngIf="result.routerDecision !== 'escalated'">
+                  <mat-icon>check_circle</mat-icon>
+                  Edge Direct
+                </span>
+              </div>
+              <h4 class="forensic-title">Forensic Analysis Summary</h4>
+              <p class="forensic-text">{{ result.summary }}</p>
+            </mat-card-content>
+
+            <mat-card-actions class="card-footer">
+              <button mat-button color="accent" (click)="seekToTimestamp(result.timestamp)" matTooltip="Jump video player to this scene">
+                <mat-icon>play_arrow</mat-icon> Seek in Video
+              </button>
+              <button mat-button color="primary" (click)="addBookmarkFromResult(result)" matTooltip="Bookmark this keyframe scene">
+                <mat-icon>bookmark_add</mat-icon> Bookmark Frame
+              </button>
+            </mat-card-actions>
+            
+          </mat-card>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Vertically Resizable Log Console Panel -->
+    <div class="resizable-log-panel" [style.height.px]="panelHeight" *ngIf="showLogConsole">
+      <!-- Resize Handle -->
+      <div class="resize-handle" (mousedown)="startResize($event)" matTooltip="Drag to resize console">
+        <div class="handle-line"></div>
+      </div>
+
+      <!-- Panel Content -->
+      <div class="log-panel-content">
+        <div class="log-panel-header">
+          <div class="panel-header-title">
+            <mat-icon class="console-icon">terminal</mat-icon>
+            Pipeline Diagnostics Log Console
+          </div>
+          <span class="spacer"></span>
+          <button mat-icon-button color="warn" (click)="logs = []" matTooltip="Clear all diagnostics logs">
+            <mat-icon>delete_sweep</mat-icon>
+          </button>
+        </div>
+
+        <!-- Scrollable Logs list -->
+        <div #logContainer class="log-lines-container">
+          <div *ngFor="let log of logs" class="log-line" [ngClass]="log.type">
+            <span class="log-time">[{{ log.time }}]</span>
+            <span class="log-tag" [ngClass]="log.tag.toLowerCase()">{{ log.tag }}</span>
+            <span class="log-message">{{ log.message }}</span>
+          </div>
+          <!-- Placeholder if no logs -->
+          <div class="log-placeholder-message" *ngIf="logs.length === 0">
+            <mat-icon class="placeholder-icon">info_outline</mat-icon>
+            No diagnostic logs available. Ingest a video and run investigation query to start diagnostics capture.
           </div>
         </div>
       </div>
-
-      <div class="results-grid">
-        <!-- Result Cards -->
-        <mat-card class="result-card glass-card" *ngFor="let result of results.results">
-          
-          <div class="card-image-wrapper">
-            <img [src]="result.imageUrl" alt="Security Frame Match" class="card-frame-image">
-            <div class="timestamp-overlay">
-              <mat-icon>schedule</mat-icon>
-              {{ result.timestamp }}
-            </div>
-            <div class="confidence-badge" [style.background-color]="result.confidence >= 0.8 ? 'var(--edge-color)' : 'var(--router-color)'">
-              {{ result.confidence * 100 | number:'1.0-0' }}% Match
-            </div>
-          </div>
-
-          <mat-card-content class="card-details">
-            <div class="metadata-row">
-              <span class="frame-tag">Frame ID: #{{ result.frameIndex }}</span>
-              <span class="escalation-tag" *ngIf="result.routerDecision === 'escalated'">
-                <mat-icon>bolt</mat-icon>
-                Cloud Verified
-              </span>
-              <span class="direct-tag" *ngIf="result.routerDecision !== 'escalated'">
-                <mat-icon>check_circle</mat-icon>
-                Edge Direct
-              </span>
-            </div>
-            <h4 class="forensic-title">Forensic Analysis Summary</h4>
-            <p class="forensic-text">{{ result.summary }}</p>
-          </mat-card-content>
-
-          <mat-card-actions class="card-footer">
-            <button mat-button color="accent">
-              <mat-icon>zoom_in</mat-icon> Inspect Frame
-            </button>
-            <button mat-button color="primary">
-              <mat-icon>download</mat-icon> Export Event
-            </button>
-          </mat-card-actions>
-          
-        </mat-card>
-      </div>
-    </section>
+    </div>
 
   </div>
 </div>

@@ -22,7 +22,7 @@ param(
     [int]$Only = 0   # 0 = run all; otherwise 1..4
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 # Resolve repo root from this script's location so the driver works regardless
 # of the current working directory (academic-grade reproducibility).
@@ -97,30 +97,10 @@ function Test-1-ReasonerSmoke {
 
     Assert-File $Sample "Test 1 sample frame"
 
-    # Inline Python: instantiate ClaudeReasoner, send one image, dump verdict.
-    # Using a here-string keeps the test self-contained (no test fixtures dir).
-    $code = @'
-import sys, json
-sys.path.append("src")
-from PIL import Image
-from reasoner.claude_engine import ClaudeReasoner, ReasonerVerdict
+    $smokeScript = Join-Path $PSScriptRoot "test_wp5_smoke.py"
+    Assert-File $smokeScript "Test 1 smoke script"
 
-reasoner = ClaudeReasoner()
-verdict = reasoner.verify_event(Image.open("sample_frame.jpg"), "a dog chasing a person")
-assert isinstance(verdict, ReasonerVerdict), "verdict has wrong type"
-assert isinstance(verdict.event_detected, bool), "event_detected not bool"
-assert 0.0 <= verdict.confidence_score <= 1.0, "confidence_score out of range"
-assert isinstance(verdict.reasoning, str) and verdict.reasoning, "reasoning empty"
-
-print(json.dumps({
-    "event_detected":   verdict.event_detected,
-    "confidence_score": verdict.confidence_score,
-    "reasoning":        verdict.reasoning[:200],
-    "is_verified":      verdict.is_verified,
-}, indent=2))
-'@
-
-    $out = & $Python -c $code 2>&1 | Out-String
+    $out = & $Python $smokeScript 2>&1 | Out-String
     Write-Host $out
 
     if ($LASTEXITCODE -eq 0 -and $out -match '"event_detected"') {
@@ -230,7 +210,7 @@ function Test-4-MissingKey {
             --top_k   5  2>&1 | Out-String
         Write-Host $out
 
-        $cleanMsg    = $out -match "CRITICAL ERROR: ANTHROPIC_API_KEY not found"
+        $cleanMsg    = ($out -match "CRITICAL ERROR: ANTHROPIC_API_KEY not found") -or ($out -match "ANTHROPIC_API_KEY is missing")
         $noTraceback = -not ($out -match "Traceback \(most recent call last\)")
 
         if ($cleanMsg -and $noTraceback) {

@@ -1,39 +1,6 @@
-// ----------------------------------------------------
-// Theme Variables Design System
-// ----------------------------------------------------
-:root {
-  // Light Mode Defaults
-  --bg-primary: #f1f5f9;
-  --bg-surface: rgba(255, 255, 255, 0.7);
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --border-color: rgba(226, 232, 240, 0.8);
-  --shadow-medium: 0 8px 32px 0 rgba(148, 163, 184, 0.12);
-  --glass-blur: 12px;
-  
-  --accent-gradient: linear-gradient(135deg, #6366f1, #3b82f6);
-  --edge-color: #06b6d4;
-  --router-color: #f59e0b;
-  --cloud-color: #8b5cf6;
-  
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
+// Theme variables and global classes are now defined in global styles.scss
 
-body.dark-theme, :host.dark-theme {
-  // Dark Mode Overrides
-  --bg-primary: #05070f;
-  --bg-surface: rgba(13, 17, 30, 0.65);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --border-color: rgba(255, 255, 255, 0.06);
-  --shadow-medium: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
-  --glass-blur: 16px;
-  
-  --accent-gradient: linear-gradient(135deg, #818cf8, #60a5fa);
-  --edge-color: #22d3ee;
-  --router-color: #fbbf24;
-  --cloud-color: #a78bfa;
-}
+
 
 // ----------------------------------------------------
 // Global Layout & Structural Elements
@@ -48,10 +15,10 @@ body.dark-theme, :host.dark-theme {
 }
 
 .header-toolbar {
-  background: var(--bg-surface) !important;
+  background: var(--mat-sys-surface-container) !important;
   backdrop-filter: blur(var(--glass-blur));
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--mat-sys-outline);
+  color: var(--mat-sys-on-surface) !important;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -66,7 +33,7 @@ body.dark-theme, :host.dark-theme {
     letter-spacing: -0.025em;
 
     .logo-icon {
-      color: #6366f1;
+      color: var(--theme-primary);
       font-size: 1.5rem;
       width: 1.5rem;
       height: 1.5rem;
@@ -159,7 +126,7 @@ body.dark-theme, :host.dark-theme {
   letter-spacing: -0.01em;
 
   mat-icon {
-    color: #6366f1;
+    color: var(--theme-primary);
   }
 }
 
@@ -268,9 +235,13 @@ body.dark-theme, :host.dark-theme {
     color: #fff !important;
     border-radius: 8px;
     height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     
     &:hover {
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      box-shadow: 0 4px 15px rgba(var(--theme-primary-rgb), 0.4);
     }
 
     &[disabled] {
@@ -307,7 +278,7 @@ body.dark-theme, :host.dark-theme {
   flex-direction: column;
   gap: 1.5rem;
   flex-grow: 1;
-  justify-content: center;
+  justify-content: flex-start;
 
   .pipeline-status-text {
     font-family: 'JetBrains Mono', monospace;
@@ -316,10 +287,10 @@ body.dark-theme, :host.dark-theme {
     border-radius: 8px;
     padding: 0.75rem 1rem;
     color: var(--text-primary);
-    border-left: 3px solid #6366f1;
+    border-left: 3px solid var(--theme-primary);
     display: flex;
     align-items: center;
-    gap: 0.50rem;
+    gap: 0.75rem;
   }
 }
 
@@ -412,12 +383,12 @@ body.dark-theme, :host.dark-theme {
 
   // Node State Classes
   &.active {
-    background: rgba(99, 102, 241, 0.05);
-    border-color: rgba(99, 102, 241, 0.2);
-    box-shadow: 0 0 15px rgba(99, 102, 241, 0.1);
+    background: rgba(var(--theme-primary-rgb), 0.05);
+    border-color: rgba(var(--theme-primary-rgb), 0.2);
+    box-shadow: 0 0 15px rgba(var(--theme-primary-rgb), 0.1);
 
     .node-info h3 {
-      color: #818cf8;
+      color: var(--theme-primary);
     }
 
     .node-circle {
@@ -448,8 +419,8 @@ body.dark-theme, :host.dark-theme {
   transition: var(--transition-smooth);
 
   &.active {
-    background-color: #6366f1;
-    box-shadow: 0 0 8px #818cf8;
+    background-color: var(--theme-primary);
+    box-shadow: 0 0 8px var(--theme-primary);
   }
 }
 
@@ -673,3 +644,295 @@ body.dark-theme, :host.dark-theme {
     box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
   }
 }
+
+// ----------------------------------------------------
+// Submit Actions Row & Synced Controls
+// ----------------------------------------------------
+.submit-actions-row {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  align-items: center;
+
+  .submit-btn {
+    flex-grow: 1;
+  }
+  
+  .cancel-btn {
+    height: 48px;
+    padding: 0 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.fps-settings-group {
+  margin-top: 0.5rem;
+  
+  .fps-inputs-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    
+    .fps-slider {
+      flex-grow: 1;
+    }
+    
+    .fps-number-field {
+      width: 90px;
+      margin-bottom: -1rem; // Adjust Material field vertical alignment
+    }
+  }
+}
+
+.checkbox-group {
+  margin: 0.5rem 0;
+  
+  .free-only-checkbox {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+}
+
+// ----------------------------------------------------
+// Results Card & Grid adjustments
+// ----------------------------------------------------
+.results-section-card {
+  margin-top: 2.5rem;
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  
+  @media (min-width: 600px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (min-width: 1100px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+// ----------------------------------------------------
+// Video Player Styles
+// ----------------------------------------------------
+.selected-file-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  text-align: left;
+}
+
+.selected-file-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+
+  .file-icon {
+    font-size: 2rem;
+    width: 2rem;
+    height: 2rem;
+    color: var(--theme-primary);
+  }
+
+  .file-details-text {
+    display: flex;
+    flex-direction: column;
+    
+    .file-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin: 0;
+      color: var(--text-primary);
+      word-break: break-all;
+      line-height: 1.3;
+    }
+    
+    .file-size {
+      font-size: 0.75rem;
+      margin: 0;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.video-player-wrapper {
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+  .main-video-player {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: block;
+    object-fit: contain;
+  }
+
+  .video-player-toolbar {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+
+    .bookmark-now-btn {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+  }
+}
+
+// ----------------------------------------------------
+// Bookmarks Panel Styles
+// ----------------------------------------------------
+.bookmarks-panel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  .bookmarks-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary);
+
+    .bookmarks-icon {
+      color: var(--theme-primary);
+    }
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+  }
+
+  .bookmarks-list {
+    overflow-y: auto;
+    padding: 0;
+    flex-grow: 1;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+  }
+
+  .bookmark-item {
+    height: auto !important;
+    padding: 4px 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .bookmark-row-content {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 12px;
+
+      .seek-bookmark-btn {
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        
+        mat-icon {
+          font-size: 1.25rem;
+          width: 1.25rem;
+          height: 1.25rem;
+          color: var(--theme-primary);
+        }
+      }
+
+      .bookmark-time {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        background: rgba(var(--theme-primary-rgb), 0.1);
+        color: var(--theme-primary);
+        padding: 2px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+
+        &:hover {
+          background: var(--theme-primary);
+          color: #fff;
+        }
+      }
+
+      .bookmark-query {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        flex-grow: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 250px;
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------
+// Progress Spinner Styles
+// ----------------------------------------------------
+.pipeline-searching-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  gap: 1.25rem;
+  color: var(--text-secondary);
+  text-align: center;
+  flex-grow: 1;
+
+  .main-progress-spinner {
+    margin: 0 auto;
+  }
+}
+
+.status-spinner {
+  margin-right: 0.25rem;
+}
+
+.btn-spinner {
+  margin: 0 !important;
+}
+
+.main-progress-spinner ::ng-deep circle {
+  stroke: var(--theme-primary);
+}
+
+.status-spinner ::ng-deep circle,
+.btn-spinner ::ng-deep circle {
+  stroke: #ffffff;
+}
+

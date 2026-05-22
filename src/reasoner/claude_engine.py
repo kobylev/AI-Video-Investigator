@@ -166,7 +166,7 @@ class ClaudeReasoner:
                 "SDK refuses to start without an authenticated Reasoner."
             )
 
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=15.0)
         self.model_id = model_id
         self.max_image_dim = max_image_dim
         self.max_retries = max_retries

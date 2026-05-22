@@ -31,33 +31,33 @@ class VideoProcessor:
         if not cap.isOpened():
             raise ValueError(f"Could not open video file: {video_path}")
 
-        video_fps = cap.get(cv2.CAP_PROP_FPS)
-        if video_fps == 0:
+        try:
+            video_fps = cap.get(cv2.CAP_PROP_FPS)
+            if video_fps == 0:
+                raise ValueError("Could not determine video FPS.")
+
+            # Calculate frame interval based on desired sample rate
+            frame_interval = int(video_fps / self.sample_rate_fps)
+            if frame_interval < 1:
+                frame_interval = 1
+
+            frame_count = 0
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                if frame_count % frame_interval == 0:
+                    # Convert BGR (OpenCV) to RGB (PIL)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(frame_rgb)
+                    
+                    timestamp = frame_count / video_fps
+                    yield img, timestamp
+
+                frame_count += 1
+        finally:
             cap.release()
-            raise ValueError("Could not determine video FPS.")
-
-        # Calculate frame interval based on desired sample rate
-        frame_interval = int(video_fps / self.sample_rate_fps)
-        if frame_interval < 1:
-            frame_interval = 1
-
-        frame_count = 0
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            if frame_count % frame_interval == 0:
-                # Convert BGR (OpenCV) to RGB (PIL)
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(frame_rgb)
-                
-                timestamp = frame_count / video_fps
-                yield img, timestamp
-
-            frame_count += 1
-
-        cap.release()
 
 if __name__ == "__main__":
     # Quick test if run directly
