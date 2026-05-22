@@ -81,6 +81,7 @@ async def investigate(
     free_only: bool = Form(False),
     fps: float = Form(1.0)
 ):
+    load_dotenv(override=True)
     start_time = time.time()
     safe_filename = os.path.basename(video.filename)
     video_base_name = os.path.splitext(safe_filename)[0]

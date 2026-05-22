@@ -1,18 +1,19 @@
 <div class="dashboard-wrapper" [style.padding-bottom.px]="showLogConsole ? (panelHeight + 40) : 40">
-  
+
   <!-- Header Toolbar -->
   <mat-toolbar color="primary" class="header-toolbar">
     <span class="logo">
       <mat-icon class="logo-icon">search</mat-icon>
       AI Video Investigator
-      <span class="version-badge">v1.3.0</span>
+      <span class="version-badge">v1.4.0</span>
     </span>
     <span class="spacer"></span>
-    
-    <button mat-icon-button [matMenuTriggerFor]="themeMenu" aria-label="Select color theme" matTooltip="Choose Theme color palette" class="theme-picker-btn">
+
+    <button mat-icon-button [matMenuTriggerFor]="themeMenu" aria-label="Select color theme"
+      matTooltip="Choose Theme color palette" class="theme-picker-btn">
       <mat-icon>format_color_fill</mat-icon>
     </button>
-    
+
     <mat-menu #themeMenu="matMenu" xPosition="before" class="theme-menu-panel">
       <div class="theme-menu-header">SELECT THEME</div>
       <mat-divider></mat-divider>
@@ -23,7 +24,9 @@
           </mat-icon>
           <span class="theme-name">{{ t.name }}</span>
           <span class="spacer"></span>
-          <mat-icon *ngIf="currentThemeClass === t.class" class="theme-mode-icon" [style.color]="isDarkTheme ? '#fbbf24' : '#f97316'" style="font-size: 1.15rem; width: 1.15rem; height: 1.15rem; margin-right: 4px; opacity: 0.85;">
+          <mat-icon *ngIf="currentThemeClass === t.class" class="theme-mode-icon"
+            [style.color]="isDarkTheme ? '#fbbf24' : '#f97316'"
+            style="font-size: 1.15rem; width: 1.15rem; height: 1.15rem; margin-right: 4px; opacity: 0.85;">
             {{ isDarkTheme ? 'dark_mode' : 'light_mode' }}
           </mat-icon>
           <div class="theme-preview-box" [style.background-color]="isDarkTheme ? t.bgDark : t.bgLight">
@@ -33,49 +36,42 @@
         </div>
       </button>
     </mat-menu>
-    
+
     <!-- Log Console Toggle Button -->
-    <button mat-icon-button (click)="toggleLogConsole()" aria-label="Toggle log console" [matTooltip]="showLogConsole ? 'Hide Diagnostics Console' : 'Show Diagnostics Console'" class="log-toggle-btn" [class.active]="showLogConsole">
+    <button mat-icon-button (click)="toggleLogConsole()" aria-label="Toggle log console"
+      [matTooltip]="showLogConsole ? 'Hide Diagnostics Console' : 'Show Diagnostics Console'" class="log-toggle-btn"
+      [class.active]="showLogConsole">
       <mat-icon>terminal</mat-icon>
     </button>
   </mat-toolbar>
 
   <div class="main-container">
-    
+
     <!-- Hero Header -->
     <header class="hero-section">
       <h1 class="hero-title">Dual-Agent Semantic Video Retrieval</h1>
       <p class="hero-subtitle">
-        Combining local CLIP filtering with Claude Haiku 4.5 cloud reasoning for GDPR-compliant, sub-3-second security search.
+        Combining local CLIP filtering with Claude Haiku 4.5 cloud reasoning for GDPR-compliant, sub-3-second security
+        search.
       </p>
     </header>
 
     <div class="grid-layout">
-      
+
       <!-- Input Panel -->
       <section class="panel glass-panel input-panel">
         <h2 class="panel-title">
           <mat-icon>video_file</mat-icon>
           Ingest & Query
         </h2>
-        
+
         <!-- Drag & Drop Zone -->
-        <div 
-          class="drag-drop-zone" 
-          [class.drag-over]="dragOver"
-          [class.has-file]="selectedFile !== null"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)"
+        <div class="drag-drop-zone" [class.drag-over]="dragOver" [class.has-file]="selectedFile !== null"
+          (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
           (click)="!selectedFile ? fileInput.click() : null">
-          
-          <input 
-            #fileInput 
-            type="file" 
-            accept="video/*" 
-            style="display: none;" 
-            (change)="onFileSelected($event)">
-          
+
+          <input #fileInput type="file" accept="video/*" style="display: none;" (change)="onFileSelected($event)">
+
           <!-- State: No File Loaded -->
           <div class="drop-zone-content" *ngIf="!selectedFile">
             <mat-icon class="upload-icon">cloud_upload</mat-icon>
@@ -92,7 +88,8 @@
                 <p class="file-size">{{ (selectedFile.size / (1024 * 1024)) | number:'1.1-2' }} MB</p>
               </div>
               <span class="spacer"></span>
-              <button mat-mini-fab color="warn" (click)="$event.stopPropagation(); clearFile()" aria-label="Remove video" matTooltip="Remove Video">
+              <button mat-mini-fab color="warn" (click)="$event.stopPropagation(); clearFile()"
+                aria-label="Remove video" matTooltip="Remove Video">
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
@@ -120,7 +117,8 @@
           <mat-list class="bookmarks-list">
             <mat-list-item *ngFor="let b of bookmarks; let i = index" class="bookmark-item">
               <div class="bookmark-row-content">
-                <button mat-icon-button color="primary" (click)="seekToTimestamp(b.timestamp)" matTooltip="Seek to this moment" class="seek-bookmark-btn">
+                <button mat-icon-button color="primary" (click)="seekToTimestamp(b.timestamp)"
+                  matTooltip="Seek to this moment" class="seek-bookmark-btn">
                   <mat-icon>play_circle</mat-icon>
                 </button>
                 <span class="bookmark-time" (click)="seekToTimestamp(b.timestamp)">{{ b.timestamp }}</span>
@@ -137,9 +135,7 @@
         <form [formGroup]="investigationForm" (ngSubmit)="startInvestigation()" class="query-form">
           <mat-form-field appearance="outline" class="full-width query-field">
             <mat-label>Natural Language Query</mat-label>
-            <input 
-              matInput 
-              formControlName="query" 
+            <input matInput formControlName="query"
               placeholder="e.g. 'person in red jacket climbing fence' or 'white truck near gate'">
             <mat-icon matSuffix class="search-field-icon">psychology</mat-icon>
             <mat-error *ngIf="investigationForm.get('query')?.hasError('required')">
@@ -194,7 +190,8 @@
                   </mat-slider>
                   <mat-form-field appearance="outline" class="fps-number-field">
                     <mat-label>FPS</mat-label>
-                    <input matInput type="number" step="0.1" min="0.1" max="5.0" [value]="fps" (input)="onFpsInputChange($event)">
+                    <input matInput type="number" step="0.1" min="0.1" max="5.0" [value]="fps"
+                      (input)="onFpsInputChange($event)">
                   </mat-form-field>
                 </div>
               </div>
@@ -216,22 +213,13 @@
           </mat-expansion-panel>
 
           <div class="submit-actions-row">
-            <button 
-              mat-raised-button 
-              color="accent" 
-              class="submit-btn"
-              type="submit" 
+            <button mat-raised-button color="accent" class="submit-btn" type="submit"
               [disabled]="investigationForm.invalid || !selectedFile || isInvestigating">
               <mat-icon class="btn-icon" *ngIf="!isInvestigating">play_arrow</mat-icon>
               <mat-spinner diameter="20" color="primary" class="btn-spinner" *ngIf="isInvestigating"></mat-spinner>
               {{ isInvestigating ? 'Analyzing Pipeline...' : 'Start Investigation' }}
             </button>
-            <button
-              *ngIf="isInvestigating"
-              type="button"
-              mat-raised-button
-              color="warn"
-              class="cancel-btn"
+            <button *ngIf="isInvestigating" type="button" mat-raised-button color="warn" class="cancel-btn"
               (click)="cancelInvestigation()">
               <mat-icon>stop</mat-icon>
               Cancel
@@ -260,7 +248,7 @@
         </div>
 
         <div class="pipeline-visualization" *ngIf="currentState">
-          
+
           <!-- State description text with Progress Spinner -->
           <div class="pipeline-status-text">
             <mat-spinner diameter="20" color="accent" class="status-spinner" *ngIf="isInvestigating"></mat-spinner>
@@ -269,8 +257,9 @@
           </div>
 
           <!-- Pipeline Stepper -->
-          <mat-stepper orientation="vertical" [selectedIndex]="currentStepIndex" [linear]="false" class="pipeline-stepper">
-            
+          <mat-stepper orientation="vertical" [selectedIndex]="currentStepIndex" [linear]="false"
+            class="pipeline-stepper">
+
             <!-- Step 1: Edge Retrieval -->
             <mat-step [completed]="currentState.stage > 1" [editable]="false">
               <ng-template matStepLabel>
@@ -317,7 +306,7 @@
           </mat-stepper>
         </div>
       </section>
-      
+
     </div>
 
     <!-- Results Section -->
@@ -339,10 +328,13 @@
             <span class="stat-badge">
               <strong>On-Prem Filter Rate:</strong> 99.94%
             </span>
-            <span class="stat-badge" *ngIf="results.tokenUsage && (results.tokenUsage.inputTokens > 0 || results.tokenUsage.outputTokens > 0)">
-              <strong>Tokens:</strong> In: {{ results.tokenUsage.inputTokens | number }} | Out: {{ results.tokenUsage.outputTokens | number }}
+            <span class="stat-badge"
+              *ngIf="results.tokenUsage && (results.tokenUsage.inputTokens > 0 || results.tokenUsage.outputTokens > 0)">
+              <strong>Tokens:</strong> In: {{ results.tokenUsage.inputTokens | number }} | Out: {{
+              results.tokenUsage.outputTokens | number }}
             </span>
-            <span class="stat-badge" *ngIf="results.tokenUsage && (results.tokenUsage.inputTokens > 0 || results.tokenUsage.outputTokens > 0)">
+            <span class="stat-badge"
+              *ngIf="results.tokenUsage && (results.tokenUsage.inputTokens > 0 || results.tokenUsage.outputTokens > 0)">
               <strong>Est. Cost:</strong> ${{ getEstimatedCost(results.tokenUsage) | number:'1.4-4' }}
             </span>
           </div>
@@ -353,14 +345,15 @@
         <div class="results-grid">
           <!-- Result Cards -->
           <mat-card class="result-card glass-card" *ngFor="let result of results.results">
-            
+
             <div class="card-image-wrapper">
               <img [src]="result.imageUrl" alt="Security Frame Match" class="card-frame-image">
               <div class="timestamp-overlay">
                 <mat-icon>schedule</mat-icon>
                 {{ result.timestamp }}
               </div>
-              <div class="confidence-badge" [style.background-color]="result.confidence >= 0.8 ? 'var(--edge-color)' : 'var(--router-color)'">
+              <div class="confidence-badge"
+                [style.background-color]="result.confidence >= 0.8 ? 'var(--edge-color)' : 'var(--router-color)'">
                 {{ result.confidence * 100 | number:'1.0-0' }}% Match
               </div>
             </div>
@@ -382,14 +375,16 @@
             </mat-card-content>
 
             <mat-card-actions class="card-footer">
-              <button mat-button color="accent" (click)="seekToTimestamp(result.timestamp)" matTooltip="Jump video player to this scene">
+              <button mat-button color="accent" (click)="seekToTimestamp(result.timestamp)"
+                matTooltip="Jump video player to this scene">
                 <mat-icon>play_arrow</mat-icon> Seek in Video
               </button>
-              <button mat-button color="primary" (click)="addBookmarkFromResult(result)" matTooltip="Bookmark this keyframe scene">
+              <button mat-button color="primary" (click)="addBookmarkFromResult(result)"
+                matTooltip="Bookmark this keyframe scene">
                 <mat-icon>bookmark_add</mat-icon> Bookmark Frame
               </button>
             </mat-card-actions>
-            
+
           </mat-card>
         </div>
       </mat-card-content>

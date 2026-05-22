@@ -351,63 +351,55 @@ export class DashboardComponent implements OnInit {
     
     this.addLog('SYSTEM', `Initiating semantic video retrieval for query: "${query}"`, 'info');
 
-    const printedSimLogs = new Set<string>();
-    
     this.investigationSub = this.investigationService.investigate(query, this.selectedFile, this.tauLow, this.tauHigh, this.freeOnly, this.fps).subscribe({
       next: (state: PipelineState) => {
         const lastMsg = this.currentState?.statusMessage;
         this.currentState = state;
         
-        // Stage-based real-time detailed log simulation
-        if (state.stage === 1) {
-          const prog = state.progress;
-          if (prog >= 10 && !printedSimLogs.has('ingest_start')) {
-            printedSimLogs.add('ingest_start');
-            this.addLog('INGEST', 'Saving video file to uploaded storage...', 'info');
-          }
-          if (prog >= 35 && !printedSimLogs.has('ingest_success')) {
-            printedSimLogs.add('ingest_success');
-            this.addLog('INGEST', 'Video file saved to local uploads directory.', 'success');
-          }
-          if (prog >= 55 && !printedSimLogs.has('edge_check')) {
-            printedSimLogs.add('edge_check');
-            this.addLog('EDGE', 'Checking vector index cache for video...', 'info');
-          }
-          if (prog >= 75 && !printedSimLogs.has('edge_load')) {
-            printedSimLogs.add('edge_load');
-            this.addLog('EDGE', 'Loading pre-computed CLIP FAISS index from disk...', 'info');
-            this.addLog('EDGE', 'Successfully loaded FAISS index.', 'success');
-          }
-          if (prog >= 90 && !printedSimLogs.has('edge_embed')) {
-            printedSimLogs.add('edge_embed');
-            this.addLog('EDGE', 'Computing text embeddings for search query...', 'info');
-          }
-          if (prog >= 100 && !printedSimLogs.has('edge_search')) {
-            printedSimLogs.add('edge_search');
-            this.addLog('EDGE', 'Searching FAISS index for candidate matches...', 'info');
-          }
-        } else if (state.stage === 2) {
-          if (!printedSimLogs.has('router_start')) {
-            printedSimLogs.add('router_start');
-            this.addLog('ROUTER', `Evaluating candidates using thresholds: tau_low = ${this.tauLow}, tau_high = ${this.tauHigh}...`, 'info');
-          }
-          if (state.statusMessage && state.statusMessage !== lastMsg) {
-            let logType = 'info';
-            if (state.statusMessage.includes('ESCALATING')) {
-              logType = 'warning';
-            } else if (state.statusMessage.includes('Skipping')) {
-              logType = 'success';
+        if (state.statusMessage && state.statusMessage !== lastMsg) {
+          let tag = 'SYSTEM';
+          let msg = state.statusMessage;
+          let type = 'info';
+
+          if (msg.startsWith('Edge Filter:')) {
+            tag = 'EDGE';
+            msg = msg.substring('Edge Filter:'.length).trim();
+            if (msg.toLowerCase().includes('success') || msg.toLowerCase().includes('completed') || msg.toLowerCase().includes('loaded')) {
+              type = 'success';
             }
-            this.addLog('ROUTER', state.statusMessage, logType);
+          } else if (msg.startsWith('Confidence-Gated Router:')) {
+            tag = 'ROUTER';
+            msg = msg.substring('Confidence-Gated Router:'.length).trim();
+            if (msg.toLowerCase().includes('success') || msg.toLowerCase().includes('skipping')) {
+              type = 'success';
+            } else if (msg.toLowerCase().includes('escalating') || msg.toLowerCase().includes('ambiguous') || msg.toLowerCase().includes('evaluating')) {
+              type = 'warning';
+            }
+          } else if (msg.startsWith('Router Decision:')) {
+            tag = 'ROUTER';
+            msg = msg.substring('Router Decision:'.length).trim();
+            type = 'success';
+          } else if (msg.startsWith('Cloud Reasoner:')) {
+            tag = 'CLOUD';
+            msg = msg.substring('Cloud Reasoner:'.length).trim();
+            if (msg.toLowerCase().includes('verified') || msg.toLowerCase().includes('detected')) {
+              type = 'success';
+            } else if (msg.toLowerCase().includes('escalating') || msg.toLowerCase().includes('claude')) {
+              type = 'warning';
+            }
+          } else if (msg.startsWith('Cloud Reasoner (Simulation):')) {
+            tag = 'CLOUD';
+            msg = msg.substring('Cloud Reasoner (Simulation):'.length).trim();
+            type = 'warning';
+          } else if (msg.toLowerCase().includes('unreachable') || msg.toLowerCase().includes('failed')) {
+            type = 'error';
+          } else if (msg.toLowerCase().includes('completed') || msg.toLowerCase().includes('success')) {
+            type = 'success';
           }
-        } else if (state.stage === 3) {
-          if (!printedSimLogs.has('cloud_start') && state.statusMessage.includes('Escalating')) {
-            printedSimLogs.add('cloud_start');
-            this.addLog('CLOUD', 'Escalating candidates to Claude Haiku 4.5...', 'info');
-          }
-          if (!printedSimLogs.has('cloud_processing') && state.statusMessage.includes('validating')) {
-            printedSimLogs.add('cloud_processing');
-            this.addLog('CLOUD', 'Claude validating semantic truth and generating forensic summaries...', 'info');
+
+          // Append to log console if not duplicate
+          if (!this.logs.some(l => l.message === msg)) {
+            this.addLog(tag, msg, type);
           }
         }
 
