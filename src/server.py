@@ -18,7 +18,7 @@ import asyncio
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from retriever.video_processor import VideoProcessor
-from retriever.clip_engine import CLIPEngine
+from retriever.factory import build_retriever
 from retriever.search_index import VectorSearchIndex
 from router.core import BudgetAwareRouter
 from reasoner.claude_engine import ClaudeReasoner, ReasonerVerdict
@@ -116,7 +116,10 @@ async def investigate(
 
         try:
             search_index = VectorSearchIndex(index_dir=INDICES_DIR)
-            clip_engine = CLIPEngine()
+            # V2.0: build_retriever() defaults to OpenCLIP (ViT-L-14 / LAION-2B)
+            # via the RETRIEVER_BACKEND env var. Variable name retained for
+            # readability — the engine interface is identical.
+            clip_engine = build_retriever()
             
             # Check if FAISS index exists for this file
             if not search_index.exists(video_path):
