@@ -58,7 +58,13 @@
       "PowerShell($errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\"$PWD\\\\start.ps1\", [ref]$null, [ref]$errors\\); if \\($errors.Count -eq 0\\) { \"OK: start.ps1 parses with no syntax errors\" } else { \"PARSE ERRORS:\"; $errors | ForEach-Object { $_.Message } })",
       "PowerShell(python -m pytest tests/router/test_temporal_dedup.py -v 2>&1)",
       "PowerShell(python -c \"import py_compile; py_compile.compile\\('src/server.py', doraise=True\\); print\\('server.py: syntax OK'\\)\")",
-      "PowerShell(python -m pytest tests/router/test_temporal_dedup.py -q 2>&1)"
+      "PowerShell(python -m pytest tests/router/test_temporal_dedup.py -q 2>&1)",
+      "PowerShell(python -m pytest tests/retriever/test_qb_norm.py -v -m \"not slow\" 2>&1)",
+      "PowerShell(python -m pytest tests/retriever/test_qb_norm.py tests/router/test_temporal_dedup.py -q -m \"not slow\" 2>&1)",
+      "PowerShell(python -c \"import matplotlib, seaborn, sklearn; print\\('matplotlib:', matplotlib.__version__\\); print\\('seaborn:', seaborn.__version__\\); print\\('sklearn:', sklearn.__version__\\)\")",
+      "PowerShell(pip install seaborn 2>&1)",
+      "PowerShell(python evals/evaluate_v2.py --queries-jsonl evals/v2_validation_queries.jsonl 2>&1)",
+      "PowerShell(python evals/evaluate_v2.py --queries-jsonl evals/v2_validation_queries.jsonl --skip-v1 2>&1)"
     ],
     "deny": [],
     "ask": [],
