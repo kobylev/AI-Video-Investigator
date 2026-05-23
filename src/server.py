@@ -289,19 +289,41 @@ async def investigate(
                 }) + "\n"
                 return
 
-            # 4. Temporal Non-Maximum Suppression (1-D NMS).
-            # Run BEFORE frame loading so we skip disk I/O on suppressed frames.
-            # time_window_sec=5 — exposable via Form param if operators need control.
+            # 4. QB-Norm FIRST (on all 20 raw candidates) so the dedup step
+            # below can use confidence_pct as the high-score tolerance key.
+            import numpy as np
+            import torch
+            faiss_indices_all = [search_index.metadata.index(r["timestamp"]) for r in raw_results]
+            cand_emb_np = np.stack([search_index.index.reconstruct(i) for i in faiss_indices_all])
+            cand_emb = torch.from_numpy(cand_emb_np).to(query_embedding.device)
+            qb_bg_emb = _get_qb_bg_embeddings(clip_engine)
+            qb = compute_normalized_similarity(cand_emb, query_embedding, qb_bg_emb)
+            for i, r in enumerate(raw_results):
+                r["confidence_pct"] = float(qb["confidence_pct"][i])
+                r["z_score"] = float(qb["z_score"][i])
+
+            # 5. Temporal Non-Maximum Suppression with high-confidence tolerance.
+            # The 90% QB-Norm threshold preserves adjacent high-confidence
+            # frames (e.g., a crash unfolding across 510 + 511) that would
+            # otherwise be aggressively collapsed by classic NMS.
             dedup_input = [
-                {"timestamp_sec": r["timestamp"], "similarity_score": r["score"], "_raw": r}
+                {"timestamp_sec": r["timestamp"], "similarity_score": r["score"],
+                 "confidence_pct": r["confidence_pct"], "_raw": r}
                 for r in raw_results
             ]
-            deduped = temporal_deduplicate_frames(dedup_input, time_window_sec=5)
+            deduped = temporal_deduplicate_frames(
+                dedup_input,
+                time_window_sec=5,
+                high_score_threshold=90.0,
+                threshold_key="confidence_pct",
+            )
             deduped_results = [d["_raw"] for d in deduped]
             n_suppressed = len(raw_results) - len(deduped_results)
             dedup_msg = (
-                f"Temporal dedup: kept {len(deduped_results)}/{len(raw_results)} candidates "
-                f"({n_suppressed} suppressed, saving {n_suppressed} downstream Claude image calls)."
+                f"Temporal dedup (tol >= 90%): kept {len(deduped_results)}/{len(raw_results)} candidates "
+                f"({n_suppressed} suppressed, saving {n_suppressed} downstream Claude image calls). "
+                f"Top raw {deduped_results[0]['score']:.4f} -> confidence "
+                f"{deduped_results[0]['confidence_pct']:.1f}%."
             )
             log_step("EDGE", dedup_msg, "success" if n_suppressed > 0 else "info")
             yield json.dumps({
@@ -310,30 +332,6 @@ async def investigate(
                 "statusMessage": f"Edge Filter: {dedup_msg}"
             }) + "\n"
             await asyncio.sleep(0.05)
-
-            # 5. Querybank Normalization (QB-Norm) for UX-friendly confidence.
-            # Reconstructs the deduped survivors' embeddings from the FAISS
-            # IndexFlatIP and z-score-normalizes each frame's response to the
-            # user query against its response to a 25-query background bank.
-            # Raw `score` is preserved so the router's tau_high/tau_low gates
-            # stay calibrated; `confidence_pct` is added for the frontend.
-            import numpy as np
-            import torch
-            faiss_indices = [search_index.metadata.index(r["timestamp"]) for r in deduped_results]
-            cand_emb_np = np.stack([search_index.index.reconstruct(i) for i in faiss_indices])
-            cand_emb = torch.from_numpy(cand_emb_np).to(query_embedding.device)
-            qb_bg_emb = _get_qb_bg_embeddings(clip_engine)
-            qb = compute_normalized_similarity(cand_emb, query_embedding, qb_bg_emb)
-            for i, r in enumerate(deduped_results):
-                r["confidence_pct"] = float(qb["confidence_pct"][i])
-                r["z_score"] = float(qb["z_score"][i])
-            log_step(
-                "EDGE",
-                f"QB-Norm applied: top raw {deduped_results[0]['score']:.4f} -> "
-                f"confidence {deduped_results[0]['confidence_pct']:.1f}% "
-                f"(z={deduped_results[0]['z_score']:+.2f})",
-                "success",
-            )
 
             # 6. Load candidate frames to feed into the router (post-dedup only).
             candidate_timestamps = [r["timestamp"] for r in deduped_results]

@@ -21,50 +21,80 @@ that lasts 30s, you want multiple representatives, not one.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 def temporal_deduplicate_frames(
     frames: List[Dict[str, Any]],
     time_window_sec: int = 5,
+    high_score_threshold: Optional[float] = None,
+    threshold_key: str = "similarity_score",
 ) -> List[Dict[str, Any]]:
-    """Suppress temporally-redundant frames via 1-D NMS.
+    """Suppress temporally-redundant frames via 1-D NMS with optional
+    high-confidence tolerance.
 
-    Each kept frame is guaranteed to be (a) the highest-scoring frame within
-    +/- ``time_window_sec`` of itself, and (b) more than ``time_window_sec``
-    away from every other kept frame.
+    Default behaviour (``high_score_threshold=None``): classic NMS — for each
+    cluster, only the highest-scoring frame survives.
+
+    Tolerance behaviour (``high_score_threshold`` set): if BOTH a candidate
+    and the nearby already-kept frame score above ``high_score_threshold``
+    on ``threshold_key``, the candidate is kept anyway. This preserves
+    critical-action sequences where multiple frames within the time window
+    legitimately capture an unfolding event — e.g., a crash visible in three
+    consecutive 1-second-apart frames, all scoring 95%+ on QB-Norm
+    confidence. Without the tolerance, NMS would aggressively collapse them
+    to one representative and zero out the recall on adjacent ground-truth
+    frames (the WP8 frame 510 vs 511 case).
 
     Args:
-        frames: List of frame dicts. Each must contain at least:
-            ``timestamp_sec`` (float | int) and ``similarity_score`` (float).
-            All other keys (``frame_id``, ``image_path``, ...) are preserved
-            on whichever frames survive.
-        time_window_sec: Suppression radius in seconds. Two kept frames are
-            guaranteed to be strictly more than this many seconds apart.
+        frames: List of frame dicts. Each must contain at least
+            ``timestamp_sec`` and ``similarity_score``. If
+            ``high_score_threshold`` is given, every frame must also contain
+            ``threshold_key``.
+        time_window_sec: Suppression radius in seconds.
+        high_score_threshold: If set, two adjacent frames both scoring above
+            this value on ``threshold_key`` are both kept. Typical values:
+            ``90.0`` for QB-Norm confidence_pct, ``0.30`` for raw cosine.
+        threshold_key: Which dict key the tolerance threshold is compared
+            against. Defaults to the same key NMS orders by; set to
+            ``"confidence_pct"`` when running tolerance against QB-Norm.
 
     Returns:
         New list of kept frame dicts, sorted ascending by ``timestamp_sec``.
-        The input list is not mutated; the returned dict objects are the same
-        identities as the corresponding inputs (no copy).
+        Input list is not mutated; dict identities are preserved.
 
     Raises:
-        KeyError: if any frame is missing ``timestamp_sec`` or
-            ``similarity_score``.
+        KeyError: if a required key is missing from any frame.
     """
     if not frames:
         return []
 
-    # Greedy NMS — highest-scoring frames win ties for their neighborhood.
+    # NMS ordering is ALWAYS by similarity_score (the canonical retrieval
+    # score). The tolerance threshold is a separate orthogonal check.
     by_score_desc = sorted(
         frames,
         key=lambda f: f["similarity_score"],
         reverse=True,
     )
 
+    def _passes_tolerance(candidate: Dict[str, Any], conflicts: List[Dict[str, Any]]) -> bool:
+        """True iff candidate AND every conflicting kept frame are both
+        above the high-confidence threshold."""
+        if high_score_threshold is None:
+            return False
+        cand_score = candidate.get(threshold_key)
+        if cand_score is None or cand_score < high_score_threshold:
+            return False
+        return all(
+            k.get(threshold_key) is not None and k[threshold_key] >= high_score_threshold
+            for k in conflicts
+        )
+
     kept: List[Dict[str, Any]] = []
     for candidate in by_score_desc:
         t = candidate["timestamp_sec"]
-        if all(abs(t - k["timestamp_sec"]) > time_window_sec for k in kept):
+        conflicts = [k for k in kept if abs(t - k["timestamp_sec"]) <= time_window_sec]
+        if not conflicts or _passes_tolerance(candidate, conflicts):
             kept.append(candidate)
 
     kept.sort(key=lambda f: f["timestamp_sec"])
