@@ -38,8 +38,8 @@
     </mat-menu>
 
     <!-- About Project Button -->
-    <button mat-icon-button [matMenuTriggerFor]="aboutMenu" aria-label="About project"
-      matTooltip="About Project" class="about-btn">
+    <button mat-icon-button [matMenuTriggerFor]="aboutMenu" aria-label="About project" matTooltip="About Project"
+      class="about-btn">
       <img src="assets/about-icon.png" alt="About project" class="about-icon-img">
     </button>
 
@@ -48,7 +48,10 @@
       <mat-divider></mat-divider>
       <div class="about-menu-content">
         <p class="about-description">
-          <strong>AI Video Investigator</strong> is a privacy-preserving dual-agent semantic video retrieval system designed for security and dashcam footage. It integrates a local lightweight edge model (FAISS + CLIP) for ultra-fast, GDPR-compliant filtering under 100ms, combined with a cloud-based multimodal reasoning agent (Claude Haiku 4.5) for deep confirmation of ambiguous events.
+          <strong>AI Video Investigator</strong> is a privacy-preserving dual-agent semantic video retrieval system
+          designed for security and dashcam footage. It integrates a local lightweight edge model (FAISS + OpenCLIP) for
+          ultra-fast, GDPR-compliant filtering under 100ms, combined with a cloud-based multimodal reasoning agent
+          (Claude Haiku 4.5) for deep confirmation of ambiguous events.
         </p>
         <mat-divider class="inner-divider"></mat-divider>
         <div class="about-meta">
