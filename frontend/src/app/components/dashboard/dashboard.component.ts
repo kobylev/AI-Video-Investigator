@@ -160,15 +160,34 @@ export class DashboardComponent implements OnInit {
     this.bookmarks = [];
   }
 
-  // Seek video player to a timestamp (HH:MM:SS format)
+  // Seek video player to a timestamp (HH:MM:SS format) and bring the
+  // player into the viewport so the user sees the frame they asked for.
   seekToTimestamp(timestamp: string): void {
-    if (this.videoPlayer && this.videoPlayer.nativeElement) {
-      const seconds = this.parseTimestampToSeconds(timestamp);
-      this.videoPlayer.nativeElement.currentTime = seconds;
-      this.videoPlayer.nativeElement.play().catch(err => {
-        console.log('Play initiated, waiting for interaction:', err);
-      });
+    if (!this.videoPlayer || !this.videoPlayer.nativeElement) {
+      return;
     }
+    const videoEl = this.videoPlayer.nativeElement;
+    const seconds = this.parseTimestampToSeconds(timestamp);
+    videoEl.currentTime = seconds;
+    videoEl.play().catch(err => {
+      console.log('Play initiated, waiting for interaction:', err);
+    });
+
+    // Scroll the player into view (the results grid lives below the
+    // ingest card, so a "Seek in Video" click would otherwise leave the
+    // user scrolled at the result thumbnail instead of the player).
+    videoEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Brief focus pulse on the player wrapper so the eye lands on it
+    // after the smooth scroll completes.
+    const wrapper = videoEl.closest('.video-player-wrapper') as HTMLElement | null;
+    if (wrapper) {
+      wrapper.classList.remove('seek-focus-pulse');
+      // Force reflow so the animation restarts on rapid successive clicks.
+      void wrapper.offsetWidth;
+      wrapper.classList.add('seek-focus-pulse');
+    }
+    videoEl.focus({ preventScroll: true });
   }
 
   // Bookmark current playing video frame

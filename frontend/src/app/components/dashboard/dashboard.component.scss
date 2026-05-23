@@ -38,7 +38,7 @@
       width: 1.5rem;
       height: 1.5rem;
     }
-    
+
     .version-badge {
       font-size: 0.65rem;
       background: var(--border-color);
@@ -48,7 +48,7 @@
       font-weight: 500;
     }
   }
-  
+
   .spacer {
     flex: 1 1 auto;
   }
@@ -220,7 +220,7 @@
 
   .query-field {
     width: 100%;
-    
+
     .search-field-icon {
       color: var(--text-secondary);
     }
@@ -239,7 +239,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    
+
     &:hover {
       box-shadow: 0 4px 15px rgba(var(--theme-primary-rgb), 0.4);
     }
@@ -370,9 +370,20 @@
     margin-bottom: 0.5rem;
   }
 
-  .badge-edge { background: rgba(34, 211, 238, 0.1); color: var(--edge-color); }
-  .badge-router { background: rgba(251, 191, 36, 0.1); color: var(--router-color); }
-  .badge-cloud { background: rgba(167, 139, 250, 0.1); color: var(--cloud-color); }
+  .badge-edge {
+    background: rgba(34, 211, 238, 0.1);
+    color: var(--edge-color);
+  }
+
+  .badge-router {
+    background: rgba(251, 191, 36, 0.1);
+    color: var(--router-color);
+  }
+
+  .badge-cloud {
+    background: rgba(167, 139, 250, 0.1);
+    color: var(--cloud-color);
+  }
 
   .progress-bar-container {
     width: 100%;
@@ -406,9 +417,17 @@
   }
 }
 
-.edge-circle { color: var(--edge-color); }
-.router-circle { color: var(--router-color); }
-.cloud-circle { color: var(--cloud-color); }
+.edge-circle {
+  color: var(--edge-color);
+}
+
+.router-circle {
+  color: var(--router-color);
+}
+
+.cloud-circle {
+  color: var(--cloud-color);
+}
 
 // Connecting Flow Lines
 .connector-line {
@@ -471,7 +490,7 @@
       border-radius: 8px;
       font-size: 0.85rem;
       font-weight: 500;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
   }
 }
@@ -504,7 +523,7 @@
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     border-color: rgba(99, 102, 241, 0.2) !important;
   }
 }
@@ -552,7 +571,7 @@
     padding: 0.3rem 0.75rem;
     border-radius: 6px;
     font-size: 0.8rem;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
   }
 }
 
@@ -579,7 +598,7 @@
       display: flex;
       align-items: center;
       gap: 0.15rem;
-      
+
       mat-icon {
         font-size: 1rem;
         width: 1rem;
@@ -594,7 +613,7 @@
       display: flex;
       align-items: center;
       gap: 0.15rem;
-      
+
       mat-icon {
         font-size: 1rem;
         width: 1rem;
@@ -635,13 +654,41 @@
     transform: scale(0.9);
     box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7);
   }
+
   70% {
     transform: scale(1.1);
     box-shadow: 0 0 0 10px rgba(34, 211, 238, 0);
   }
+
   100% {
     transform: scale(0.9);
     box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+  }
+}
+
+// Brief glow ring that fires on .video-player-wrapper when the user
+// clicks "Seek in Video" — visually anchors the eye on the player
+// after the smooth scroll lands it in the viewport.
+@keyframes seek-focus-pulse {
+  0% {
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.3),
+      0 0 0 0 var(--theme-primary, #3b82f6);
+    transform: scale(1);
+  }
+
+  30% {
+    box-shadow:
+      0 4px 28px rgba(0, 0, 0, 0.45),
+      0 0 0 6px color-mix(in srgb, var(--theme-primary, #3b82f6) 35%, transparent);
+    transform: scale(1.01);
+  }
+
+  100% {
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.3),
+      0 0 0 0 color-mix(in srgb, var(--theme-primary, #3b82f6) 0%, transparent);
+    transform: scale(1);
   }
 }
 
@@ -657,7 +704,7 @@
   .submit-btn {
     flex-grow: 1;
   }
-  
+
   .cancel-btn {
     height: 48px;
     padding: 0 1.5rem;
@@ -671,17 +718,17 @@
 
 .fps-settings-group {
   margin-top: 0.5rem;
-  
+
   .fps-inputs-container {
     display: flex;
     align-items: center;
     gap: 1rem;
     width: 100%;
-    
+
     .fps-slider {
       flex-grow: 1;
     }
-    
+
     .fps-number-field {
       width: 90px;
       margin-bottom: -1rem; // Adjust Material field vertical alignment
@@ -691,7 +738,7 @@
 
 .checkbox-group {
   margin: 0.5rem 0;
-  
+
   .free-only-checkbox {
     font-weight: 500;
     color: var(--text-primary);
@@ -712,11 +759,11 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 1.5rem;
-  
+
   @media (min-width: 600px) {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   @media (min-width: 1100px) {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -752,7 +799,7 @@
   .file-details-text {
     display: flex;
     flex-direction: column;
-    
+
     .file-name {
       font-weight: 600;
       font-size: 0.95rem;
@@ -761,7 +808,7 @@
       word-break: break-all;
       line-height: 1.3;
     }
-    
+
     .file-size {
       font-size: 0.75rem;
       margin: 0;
@@ -776,6 +823,13 @@
   overflow: hidden;
   border: 1px solid var(--border-color);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+  // Briefly applied when the user clicks "Seek in Video" on a result
+  // card — draws the eye to the player after the smooth scroll lands.
+  &.seek-focus-pulse {
+    animation: seek-focus-pulse 1.2s ease-out 1;
+  }
 
   .main-video-player {
     width: 100%;
@@ -837,6 +891,7 @@
     &::-webkit-scrollbar {
       width: 6px;
     }
+
     &::-webkit-scrollbar-thumb {
       background: var(--border-color);
       border-radius: 4px;
@@ -862,7 +917,7 @@
         width: 32px;
         height: 32px;
         line-height: 32px;
-        
+
         mat-icon {
           font-size: 1.25rem;
           width: 1.25rem;
@@ -936,3 +991,173 @@
   stroke: #ffffff;
 }
 
+// ----------------------------------------------------
+// Right-column V2.0 layout — TWO SEPARATE mat-cards, NOT nested.
+// Wireframe-matching: clean outlined boxes stacked vertically.
+// ----------------------------------------------------
+
+// Grid placement: left card occupies the full column 1, stacked right
+// cards occupy column 2 rows 1 & 2 (wireframe layout). Only takes
+// effect once the grid switches to two columns (>= 960px); below that
+// breakpoint the cards stack naturally.
+@media (min-width: 960px) {
+  .input-panel-card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .pipeline-status-card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .log-console-card {
+    grid-column: 2;
+    grid-row: 2;
+
+  }
+}
+
+.fixed-log-card {
+  height: 450px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.input-panel-card,
+.pipeline-status-card,
+.log-console-card {
+  display: block;
+  width: 100%;
+  border-radius: 12px !important;
+  // Override global .glass-panel { border-top: 3px solid ... } that
+  // would force a coloured stripe — wireframe shows clean outlined
+  // rectangles only.
+  border-top: none !important;
+  // Soft elevation — keeps the outlined-card look but lifts each card
+  // off the page background. Combines Material's level-2 shadow with
+  // a tighter inner ring for crisper edge definition on light themes.
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  transition: box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  }
+
+  .mat-mdc-card-header {
+    padding: 16px 16px 8px 16px;
+  }
+
+  .mat-mdc-card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .mat-mdc-card-subtitle {
+    font-size: 0.8125rem;
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+
+  .card-title-icon {
+    color: var(--theme-primary);
+    font-size: 1.25rem;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .mat-mdc-card-content {
+    padding: 12px 16px 16px;
+  }
+}
+
+// ----------------------------------------------------
+// Fixed-size log console card with Stationary Frame
+// ----------------------------------------------------
+.log-console-card {
+  height: 400px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  ::ng-deep .mat-mdc-card-header {
+    flex: 0 0 auto;
+  }
+
+  .log-card-header {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .mat-mdc-card-header-text {
+    flex: 1 1 auto;
+  }
+
+  // המסגרת הקבועה שלא זזה (תופסת את שאר הגובה)
+  ::ng-deep .mat-mdc-card-content.log-frame-static-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin: 12px 16px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+
+    body.dark-theme & {
+      background-color: color-mix(in srgb, var(--bg-primary) 90%, #000000 10%);
+    }
+
+    body.light-theme & {
+      background-color: rgba(248, 250, 252, 0.95);
+    }
+  }
+
+  // אזור הגלילה הפנימי לטקסט בלבד
+  .log-lines-scrollable-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: 100%;
+    padding: 12px 16px;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", monospace;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+  }
+
+  .log-line {
+    display: flex;
+    flex-wrap: wrap;
+    white-space: normal;
+    word-break: break-word;
+    min-width: 0;
+    margin-bottom: 4px;
+  }
+
+  .log-line>* {
+    flex-shrink: 1;
+    white-space: normal;
+  }
+}
