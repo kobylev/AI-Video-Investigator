@@ -222,7 +222,7 @@ h1, h2, h3, h4, h5, h6, p, span, label, input, select, textarea {
 // Theme Picker Button Styles
 // ----------------------------------------------------
 .theme-picker-btn {
-  background-color: var(--theme-primary) !important;
+  background-color: var(--bg-surface) !important;
   border-radius: 8px !important;
   transition: var(--transition-smooth) !important;
   width: 40px !important;
@@ -230,11 +230,11 @@ h1, h2, h3, h4, h5, h6, p, span, label, input, select, textarea {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05) !important;
   border: 1px solid var(--border-color) !important;
 
   .mat-icon {
-    color: var(--mat-sys-on-primary, #ffffff) !important;
+    color: var(--theme-primary) !important;
     transition: var(--transition-smooth) !important;
   }
 
@@ -321,10 +321,15 @@ h1, h2, h3, h4, h5, h6, p, span, label, input, select, textarea {
     transition: var(--transition-smooth) !important;
   }
 
-  .about-icon-img {
+  .about-icon-mask {
+    display: inline-block;
     width: 24px;
     height: 24px;
-    object-fit: contain;
+    background-color: var(--theme-primary);
+    -webkit-mask: url('/assets/about-icon.png') no-repeat center;
+    mask: url('/assets/about-icon.png') no-repeat center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
     transition: var(--transition-smooth) !important;
   }
 
@@ -342,8 +347,9 @@ h1, h2, h3, h4, h5, h6, p, span, label, input, select, textarea {
       color: var(--bg-surface) !important;
     }
 
-    .about-icon-img {
+    .about-icon-mask {
       transform: scale(1.1);
+      background-color: var(--bg-surface) !important;
     }
   }
 }

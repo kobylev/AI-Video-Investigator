@@ -71,15 +71,6 @@ export class InvestigationService {
       const abortController = new AbortController();
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-      // Wrap subscriber methods in ngZone.run to ensure change detection triggers for async fetch stream callbacks
-      const originalNext = subscriber.next.bind(subscriber);
-      const originalError = subscriber.error.bind(subscriber);
-      const originalComplete = subscriber.complete.bind(subscriber);
-
-      (subscriber as any).next = (state: PipelineState) => this.ngZone.run(() => originalNext(state));
-      (subscriber as any).error = (err: any) => this.ngZone.run(() => originalError(err));
-      (subscriber as any).complete = () => this.ngZone.run(() => originalComplete());
-
       (async () => {
         try {
           const response = await fetch(backendUrl, {
@@ -115,7 +106,7 @@ export class InvestigationService {
               if (trimmed) {
                 try {
                   const state = JSON.parse(trimmed) as PipelineState;
-                  subscriber.next(state);
+                  this.ngZone.run(() => subscriber.next(state));
                 } catch (e) {
                   console.error('Failed to parse stream line:', trimmed, e);
                 }
@@ -126,13 +117,13 @@ export class InvestigationService {
           if (buffer.trim()) {
             try {
               const state = JSON.parse(buffer.trim()) as PipelineState;
-              subscriber.next(state);
+              this.ngZone.run(() => subscriber.next(state));
             } catch (e) {
               console.error('Failed to parse final stream line:', buffer, e);
             }
           }
 
-          subscriber.complete();
+          this.ngZone.run(() => subscriber.complete());
         } catch (err: any) {
           if (err.name === 'AbortError') {
             console.log('Stream fetch aborted.');
@@ -145,21 +136,21 @@ export class InvestigationService {
             // Simulated Stage 1: Edge Retrieval
             for (let p = 10; p <= 100; p += 10) {
               if (abortController.signal.aborted) return;
-              subscriber.next({
+              this.ngZone.run(() => subscriber.next({
                 stage: 1,
                 progress: p,
                 statusMessage: `Edge Filter: Local frame extraction & CLIP similarity search... (${p}%)`
-              });
+              }));
               await delay(150);
             }
 
             // Simulated Stage 2: Router Gate
             if (abortController.signal.aborted) return;
-            subscriber.next({
+            this.ngZone.run(() => subscriber.next({
               stage: 2,
               progress: 100,
               statusMessage: 'FastAPI Backend unreachable. Falling back to local offline simulation.'
-            });
+            }));
             await delay(1000);
 
             const mockResponse: InvestigationResponse = {
@@ -213,32 +204,32 @@ export class InvestigationService {
 
             if (freeOnly) {
               if (abortController.signal.aborted) return;
-              subscriber.next({
+              this.ngZone.run(() => subscriber.next({
                 stage: 4,
                 progress: 100,
                 statusMessage: 'Investigation completed (Simulation Mode - CLIP Only).',
                 response: mockResponse
-              });
+              }));
             } else {
               if (abortController.signal.aborted) return;
-              subscriber.next({
+              this.ngZone.run(() => subscriber.next({
                 stage: 3,
                 progress: 100,
                 statusMessage: 'Cloud Reasoner (Simulation): Simulating Claude verification...'
-              });
+              }));
               await delay(1200);
 
               if (abortController.signal.aborted) return;
-              subscriber.next({
+              this.ngZone.run(() => subscriber.next({
                 stage: 4,
                 progress: 100,
                 statusMessage: 'Investigation completed (Simulation Mode).',
                 response: mockResponse
-              });
+              }));
             }
-            subscriber.complete();
+            this.ngZone.run(() => subscriber.complete());
           } catch (simErr) {
-            subscriber.error(simErr);
+            this.ngZone.run(() => subscriber.error(simErr));
           }
         }
       })();

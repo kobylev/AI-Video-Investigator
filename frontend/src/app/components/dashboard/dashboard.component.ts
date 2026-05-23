@@ -1,4 +1,4 @@
-import { Component, HostBinding, OnInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, HostBinding, OnInit, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
@@ -60,7 +60,8 @@ export class DashboardComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private investigationService: InvestigationService,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -455,16 +456,19 @@ export class DashboardComponent implements OnInit {
           const decision = state.response.routerDecision;
           this.addLog('SYSTEM', `Retrieved ${state.response.results.length} candidate frame(s). Router decision: ${decision.toUpperCase()}. Pipeline execution time: ${state.response.executionTimeMs}ms`, 'success');
         }
+        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error(err);
         this.isInvestigating = false;
         this.investigationSub = null;
         this.addLog('ERROR', `Pipeline execution failed: ${err.message || err}`, 'error');
+        this.cdr.detectChanges();
       },
       complete: () => {
         this.isInvestigating = false;
         this.investigationSub = null;
+        this.cdr.detectChanges();
       }
     });
   }

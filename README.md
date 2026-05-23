@@ -6,6 +6,8 @@
 
 **Status:** ✅ WP8 — Angular GUI Implemented | **Next:** Project Defense | **Author:** Koby Lev | **Architecture:** Edge-to-Cloud Hybrid (Full-Stack)
 
+![AI Video Investigator Demo](assets/demo.gif)
+
 ### Project Milestones Accomplished
 
 | Work Package | Phase / Tier | Focus Area | Milestone Accomplished |
