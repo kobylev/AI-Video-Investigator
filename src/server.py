@@ -21,6 +21,7 @@ from retriever.video_processor import VideoProcessor
 from retriever.factory import build_retriever
 from retriever.search_index import VectorSearchIndex
 from router.core import BudgetAwareRouter
+from router.temporal_dedup import temporal_deduplicate_frames
 from reasoner.claude_engine import ClaudeReasoner, ReasonerVerdict
 
 # Load environment variables
@@ -270,12 +271,34 @@ async def investigate(
                 }) + "\n"
                 return
 
-            # 4. Load candidate frames to feed into the router
-            candidate_timestamps = [r["timestamp"] for r in raw_results]
+            # 4. Temporal Non-Maximum Suppression (1-D NMS).
+            # Run BEFORE frame loading so we skip disk I/O on suppressed frames.
+            # time_window_sec=5 — exposable via Form param if operators need control.
+            dedup_input = [
+                {"timestamp_sec": r["timestamp"], "similarity_score": r["score"], "_raw": r}
+                for r in raw_results
+            ]
+            deduped = temporal_deduplicate_frames(dedup_input, time_window_sec=5)
+            deduped_results = [d["_raw"] for d in deduped]
+            n_suppressed = len(raw_results) - len(deduped_results)
+            dedup_msg = (
+                f"Temporal dedup: kept {len(deduped_results)}/{len(raw_results)} candidates "
+                f"({n_suppressed} suppressed, saving {n_suppressed} downstream Claude image calls)."
+            )
+            log_step("EDGE", dedup_msg, "success" if n_suppressed > 0 else "info")
+            yield json.dumps({
+                "stage": 1,
+                "progress": 100,
+                "statusMessage": f"Edge Filter: {dedup_msg}"
+            }) + "\n"
+            await asyncio.sleep(0.05)
+
+            # 5. Load candidate frames to feed into the router (post-dedup only).
+            candidate_timestamps = [r["timestamp"] for r in deduped_results]
             candidate_frames = clip_engine.get_frames_at_timestamps(video_path, candidate_timestamps)
-            
+
             candidates_for_router = []
-            for r, img in zip(raw_results, candidate_frames):
+            for r, img in zip(deduped_results, candidate_frames):
                 candidates_for_router.append({
                     "frame": img,
                     "timestamp": r["timestamp"],
