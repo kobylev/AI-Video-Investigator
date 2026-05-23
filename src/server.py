@@ -302,10 +302,20 @@ async def investigate(
                 r["confidence_pct"] = float(qb["confidence_pct"][i])
                 r["z_score"] = float(qb["z_score"][i])
 
-            # 5. Temporal Non-Maximum Suppression with high-confidence tolerance.
-            # The 90% QB-Norm threshold preserves adjacent high-confidence
-            # frames (e.g., a crash unfolding across 510 + 511) that would
-            # otherwise be aggressively collapsed by classic NMS.
+            # 5. Temporal Non-Maximum Suppression with STRICT Soft-NMS preset.
+            # QB-Norm crowds good matches into the 95-98% range, which made
+            # the prior 90% tolerance threshold a no-op (every cluster
+            # survived intact, flooding the UI with 3+ near-identical
+            # frames at 95/96/97% — see WP8 frame 271/272/273 case).
+            #
+            # New preset:
+            #   - high_score_threshold = 98.0  : only near-perfect matches
+            #     are tolerance-eligible.
+            #   - peak_proximity_delta = 2.0   : a neighbour must be within
+            #     2 percentage points of the cluster peak, preventing a
+            #     barely-passing 98.0 from joining a 99.9 peak.
+            #   - max_per_cluster      = 2     : hard cap. Even with both
+            #     above passing, no cluster ever shows > 2 survivors.
             dedup_input = [
                 {"timestamp_sec": r["timestamp"], "similarity_score": r["score"],
                  "confidence_pct": r["confidence_pct"], "_raw": r}
@@ -314,13 +324,16 @@ async def investigate(
             deduped = temporal_deduplicate_frames(
                 dedup_input,
                 time_window_sec=5,
-                high_score_threshold=90.0,
+                high_score_threshold=98.0,
                 threshold_key="confidence_pct",
+                max_per_cluster=2,
+                peak_proximity_delta=2.0,
             )
             deduped_results = [d["_raw"] for d in deduped]
             n_suppressed = len(raw_results) - len(deduped_results)
             dedup_msg = (
-                f"Temporal dedup (tol >= 90%): kept {len(deduped_results)}/{len(raw_results)} candidates "
+                f"Temporal dedup (strict: tol>=98%, max 2/cluster, peak Δ<=2%): "
+                f"kept {len(deduped_results)}/{len(raw_results)} candidates "
                 f"({n_suppressed} suppressed, saving {n_suppressed} downstream Claude image calls). "
                 f"Top raw {deduped_results[0]['score']:.4f} -> confidence "
                 f"{deduped_results[0]['confidence_pct']:.1f}%."

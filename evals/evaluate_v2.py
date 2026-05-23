@@ -67,7 +67,9 @@ K = 5
 TAU_HIGH = 0.32
 TAU_LOW = 0.24
 TIME_WINDOW_SEC = 5
-NMS_HIGH_CONF_THRESHOLD = 90.0   # QB-Norm percentage
+NMS_HIGH_CONF_THRESHOLD = 98.0   # QB-Norm percentage — STRICT preset
+NMS_PEAK_PROXIMITY_DELTA = 2.0   # neighbour must be within Δ of peak
+NMS_MAX_PER_CLUSTER = 2          # hard cap on survivors per cluster
 
 # V1.0 documented baselines from the WP6 stub harness. Cited verbatim in
 # the report for documentation continuity; the script does NOT use these
@@ -180,6 +182,8 @@ def evaluate_v2_query(
         time_window_sec=TIME_WINDOW_SEC,
         high_score_threshold=NMS_HIGH_CONF_THRESHOLD,
         threshold_key="confidence_pct",
+        max_per_cluster=NMS_MAX_PER_CLUSTER,
+        peak_proximity_delta=NMS_PEAK_PROXIMITY_DELTA,
     )
     deduped = [d["_raw"] for d in dedup_out]
     timings["dedup_ms"] = (time.perf_counter() - t0) * 1000

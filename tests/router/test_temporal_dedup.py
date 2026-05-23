@@ -162,6 +162,126 @@ def test_threshold_key_defaults_to_similarity_score():
     assert [r["fid"] for r in result] == ["a", "b"]
 
 
+def test_strict_preset_collapses_the_wp8_porch_cluster():
+    """The exact UX bug the user reported: three adjacent porch frames at
+    96/95/97% all bypassed dedup under the old 90% threshold, flooding the
+    Investigation Report with redundant near-identical scenes. With the new
+    strict preset (threshold=98), none of the three pass tolerance and
+    classic NMS picks only the 97% peak."""
+    frames = [
+        {"timestamp_sec": 271.0, "similarity_score": 0.30, "confidence_pct": 96.0, "fid": 271},
+        {"timestamp_sec": 272.0, "similarity_score": 0.29, "confidence_pct": 95.0, "fid": 272},
+        {"timestamp_sec": 273.0, "similarity_score": 0.31, "confidence_pct": 97.0, "fid": 273},
+    ]
+
+    result = temporal_deduplicate_frames(
+        frames,
+        time_window_sec=5,
+        high_score_threshold=98.0,
+        threshold_key="confidence_pct",
+        max_per_cluster=2,
+        peak_proximity_delta=2.0,
+    )
+
+    assert [r["fid"] for r in result] == [273]
+    assert result[0]["confidence_pct"] == 97.0
+
+
+def test_strict_preset_keeps_genuine_near_tie_pair():
+    """A real "two camera angles on the same instant" tie: 99.5% + 98.5%
+    within 1 percentage point. Both are >=98 AND within proximity delta,
+    so both survive — and the cluster cap of 2 lets exactly two through."""
+    frames = [
+        {"timestamp_sec": 100.0, "similarity_score": 0.40, "confidence_pct": 98.5, "fid": "neighbour"},
+        {"timestamp_sec": 101.0, "similarity_score": 0.42, "confidence_pct": 99.5, "fid": "peak"},
+    ]
+
+    result = temporal_deduplicate_frames(
+        frames,
+        time_window_sec=5,
+        high_score_threshold=98.0,
+        threshold_key="confidence_pct",
+        max_per_cluster=2,
+        peak_proximity_delta=2.0,
+    )
+
+    assert {r["fid"] for r in result} == {"peak", "neighbour"}
+
+
+def test_strict_preset_cluster_cap_drops_third_even_when_all_pass_threshold():
+    """Three frames all >=98% AND within proximity, but cluster cap=2.
+    Peak + closest-to-peak survive; the third is dropped by the cap."""
+    frames = [
+        {"timestamp_sec": 100.0, "similarity_score": 0.39, "confidence_pct": 98.2, "fid": "tail"},
+        {"timestamp_sec": 101.0, "similarity_score": 0.40, "confidence_pct": 98.5, "fid": "mid"},
+        {"timestamp_sec": 102.0, "similarity_score": 0.41, "confidence_pct": 99.0, "fid": "peak"},
+    ]
+
+    result = temporal_deduplicate_frames(
+        frames,
+        time_window_sec=5,
+        high_score_threshold=98.0,
+        threshold_key="confidence_pct",
+        max_per_cluster=2,
+        peak_proximity_delta=2.0,
+    )
+
+    # Peak is kept. Next-highest score (mid=98.5) is the second survivor.
+    # The third (tail=98.2) is dropped because the cluster is already full.
+    assert {r["fid"] for r in result} == {"peak", "mid"}
+
+
+def test_strict_preset_proximity_cuts_borderline_neighbour():
+    """Peak at 99.9, neighbour at 97.5 — neighbour fails threshold (<98)
+    so doesn't even reach the proximity check; peak alone survives."""
+    frames = [
+        {"timestamp_sec": 100.0, "similarity_score": 0.39, "confidence_pct": 97.5, "fid": "borderline"},
+        {"timestamp_sec": 101.0, "similarity_score": 0.42, "confidence_pct": 99.9, "fid": "peak"},
+    ]
+
+    result = temporal_deduplicate_frames(
+        frames,
+        time_window_sec=5,
+        high_score_threshold=98.0,
+        threshold_key="confidence_pct",
+        max_per_cluster=2,
+        peak_proximity_delta=2.0,
+    )
+
+    assert [r["fid"] for r in result] == ["peak"]
+
+
+def test_strict_preset_proximity_cuts_far_neighbour_even_above_threshold():
+    """Both >=98% but gap > peak_proximity_delta: neighbour rejected
+    because it isn't close enough to the peak to count as a tie."""
+    frames = [
+        # Gap is 99.9 - 98.0 = 1.9 — JUST inside delta=2.0. Both kept.
+        {"timestamp_sec": 100.0, "similarity_score": 0.39, "confidence_pct": 98.0, "fid": "neighbour"},
+        {"timestamp_sec": 101.0, "similarity_score": 0.42, "confidence_pct": 99.9, "fid": "peak"},
+    ]
+    result = temporal_deduplicate_frames(
+        frames,
+        time_window_sec=5,
+        high_score_threshold=98.0,
+        threshold_key="confidence_pct",
+        max_per_cluster=2,
+        peak_proximity_delta=2.0,
+    )
+    assert {r["fid"] for r in result} == {"peak", "neighbour"}
+
+    # Same setup but tighten delta to 1.0: gap of 1.9 now exceeds it,
+    # neighbour gets dropped.
+    result = temporal_deduplicate_frames(
+        frames,
+        time_window_sec=5,
+        high_score_threshold=98.0,
+        threshold_key="confidence_pct",
+        max_per_cluster=2,
+        peak_proximity_delta=1.0,
+    )
+    assert [r["fid"] for r in result] == ["peak"]
+
+
 def test_long_chain_with_mixed_confidence_correctly_handled():
     """A chain of 5 close frames, only the middle 3 above threshold.
     Expected: peak survives unconditionally, its two high-conf neighbours
