@@ -18,9 +18,14 @@ import asyncio
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from retriever.video_processor import VideoProcessor
-from retriever.clip_engine import CLIPEngine
+from retriever.factory import build_retriever
 from retriever.search_index import VectorSearchIndex
 from router.core import BudgetAwareRouter
+from router.temporal_dedup import temporal_deduplicate_frames
+from retriever.qb_norm import (
+    encode_background_queries,
+    compute_normalized_similarity,
+)
 from reasoner.claude_engine import ClaudeReasoner, ReasonerVerdict
 
 # Load environment variables
@@ -44,6 +49,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# QB-Norm: cache background-query text embeddings across requests. Encoded
+# once per process lifetime on first /api/investigate call. Tiny vs. the
+# image-encoder weights but a measurable ~250ms saving per query at p50.
+_QB_BG_EMBEDDINGS = None
+
+
+def _get_qb_bg_embeddings(engine):
+    """Lazily encode and cache the QB-Norm background-query bank."""
+    global _QB_BG_EMBEDDINGS
+    if _QB_BG_EMBEDDINGS is None:
+        _QB_BG_EMBEDDINGS = encode_background_queries(engine)
+    return _QB_BG_EMBEDDINGS
+
 
 # Setup directories
 DATA_DIR = "data"
@@ -116,7 +135,10 @@ async def investigate(
 
         try:
             search_index = VectorSearchIndex(index_dir=INDICES_DIR)
-            clip_engine = CLIPEngine()
+            # V2.0: build_retriever() defaults to OpenCLIP (ViT-L-14 / LAION-2B)
+            # via the RETRIEVER_BACKEND env var. Variable name retained for
+            # readability — the engine interface is identical.
+            clip_engine = build_retriever()
             
             # Check if FAISS index exists for this file
             if not search_index.exists(video_path):
@@ -267,16 +289,62 @@ async def investigate(
                 }) + "\n"
                 return
 
-            # 4. Load candidate frames to feed into the router
-            candidate_timestamps = [r["timestamp"] for r in raw_results]
+            # 4. QB-Norm FIRST (on all 20 raw candidates) so the dedup step
+            # below can use confidence_pct as the high-score tolerance key.
+            import numpy as np
+            import torch
+            faiss_indices_all = [search_index.metadata.index(r["timestamp"]) for r in raw_results]
+            cand_emb_np = np.stack([search_index.index.reconstruct(i) for i in faiss_indices_all])
+            cand_emb = torch.from_numpy(cand_emb_np).to(query_embedding.device)
+            qb_bg_emb = _get_qb_bg_embeddings(clip_engine)
+            qb = compute_normalized_similarity(cand_emb, query_embedding, qb_bg_emb)
+            for i, r in enumerate(raw_results):
+                r["confidence_pct"] = float(qb["confidence_pct"][i])
+                r["z_score"] = float(qb["z_score"][i])
+
+            # 5. Temporal Non-Maximum Suppression with high-confidence tolerance.
+            # The 90% QB-Norm threshold preserves adjacent high-confidence
+            # frames (e.g., a crash unfolding across 510 + 511) that would
+            # otherwise be aggressively collapsed by classic NMS.
+            dedup_input = [
+                {"timestamp_sec": r["timestamp"], "similarity_score": r["score"],
+                 "confidence_pct": r["confidence_pct"], "_raw": r}
+                for r in raw_results
+            ]
+            deduped = temporal_deduplicate_frames(
+                dedup_input,
+                time_window_sec=5,
+                high_score_threshold=90.0,
+                threshold_key="confidence_pct",
+            )
+            deduped_results = [d["_raw"] for d in deduped]
+            n_suppressed = len(raw_results) - len(deduped_results)
+            dedup_msg = (
+                f"Temporal dedup (tol >= 90%): kept {len(deduped_results)}/{len(raw_results)} candidates "
+                f"({n_suppressed} suppressed, saving {n_suppressed} downstream Claude image calls). "
+                f"Top raw {deduped_results[0]['score']:.4f} -> confidence "
+                f"{deduped_results[0]['confidence_pct']:.1f}%."
+            )
+            log_step("EDGE", dedup_msg, "success" if n_suppressed > 0 else "info")
+            yield json.dumps({
+                "stage": 1,
+                "progress": 100,
+                "statusMessage": f"Edge Filter: {dedup_msg}"
+            }) + "\n"
+            await asyncio.sleep(0.05)
+
+            # 6. Load candidate frames to feed into the router (post-dedup only).
+            candidate_timestamps = [r["timestamp"] for r in deduped_results]
             candidate_frames = clip_engine.get_frames_at_timestamps(video_path, candidate_timestamps)
-            
+
             candidates_for_router = []
-            for r, img in zip(raw_results, candidate_frames):
+            for r, img in zip(deduped_results, candidate_frames):
                 candidates_for_router.append({
                     "frame": img,
                     "timestamp": r["timestamp"],
-                    "score": r["score"]
+                    "score": r["score"],
+                    "confidence_pct": r["confidence_pct"],
+                    "z_score": r["z_score"],
                 })
 
             # 5. Route through BudgetAwareRouter
@@ -329,10 +397,15 @@ async def investigate(
                 if not os.path.exists(frame_filepath):
                     item["frame"].save(frame_filepath, format="JPEG")
                 
+                # QB-Norm confidence (0-100) -> 0-1 to match the existing
+                # response convention. Falls back to raw cosine if the field
+                # is somehow missing (defensive — should always be present
+                # after the QB-Norm block above).
+                ui_confidence = item.get("confidence_pct", item["score"] * 100) / 100.0
                 final_results.append({
                     "timestamp": format_timestamp(item["timestamp"]),
                     "frameIndex": idx,
-                    "confidence": round(item["score"], 2),
+                    "confidence": round(ui_confidence, 2),
                     "imageUrl": image_url,
                     "summary": "Auto-accepted by Edge VLM filter (High CLIP confidence).",
                     "routerDecision": "accepted"
