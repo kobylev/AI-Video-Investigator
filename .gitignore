@@ -135,3 +135,4 @@ deliverables/**/*.pdf
 *~
 evals/v2_validation_queries.jsonl.bak
 evals/v2_validation_queries.jsonl.claude_bak
+.git_merge_v2_message.md
