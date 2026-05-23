@@ -134,3 +134,4 @@ deliverables/**/*.pdf
 *.swo
 *~
 evals/v2_validation_queries.jsonl.bak
+evals/v2_validation_queries.jsonl.claude_bak
