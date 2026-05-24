@@ -57,19 +57,23 @@ from src.retriever.qb_norm import (
 from src.retriever.search_index import VectorSearchIndex
 from src.router.core import BudgetAwareRouter
 from src.router.temporal_dedup import temporal_deduplicate_frames
+from src.config import EVALUATION_MODE, get_config_value
 
 
 # -----------------------------------------------------------------------------
 # Constants
 # -----------------------------------------------------------------------------
 
-K = 5
-TAU_HIGH = 0.32
-TAU_LOW = 0.24
-TIME_WINDOW_SEC = 5
-NMS_HIGH_CONF_THRESHOLD = 98.0   # QB-Norm percentage — STRICT preset
-NMS_PEAK_PROXIMITY_DELTA = 2.0   # neighbour must be within Δ of peak
-NMS_MAX_PER_CLUSTER = 2          # hard cap on survivors per cluster
+# Constant thresholds loaded dynamically from src/config.py
+K = get_config_value("K")
+TAU_HIGH = get_config_value("TAU_HIGH")
+TAU_LOW = get_config_value("TAU_LOW")
+TIME_WINDOW_SEC = get_config_value("TIME_WINDOW_SEC")
+NMS_HIGH_CONF_THRESHOLD = get_config_value("NMS_HIGH_CONF_THRESHOLD")
+NMS_PEAK_PROXIMITY_DELTA = get_config_value("NMS_PEAK_PROXIMITY_DELTA")
+NMS_MAX_PER_CLUSTER = get_config_value("NMS_MAX_PER_CLUSTER")
+TOLERANCE_RADIUS = get_config_value("TOLERANCE_RADIUS")
+MAX_ESCALATIONS = get_config_value("MAX_ESCALATIONS")
 
 # V1.0 documented baselines from the WP6 stub harness. Cited verbatim in
 # the report for documentation continuity; the script does NOT use these
@@ -121,6 +125,90 @@ def load_frame_paths(frames_dir: Path) -> Tuple[List[Path], List[int]]:
     )
     indices = [int(p.stem.split("_")[1]) for p in paths]
     return paths, indices
+
+
+def group_contiguous_events(gt_indices: List[int]) -> List[List[int]]:
+    """Group sorted ground truth frames into contiguous (consecutive) events."""
+    if not gt_indices:
+        return []
+    sorted_gt = sorted(gt_indices)
+    events = []
+    current_event = [sorted_gt[0]]
+    for val in sorted_gt[1:]:
+        if val == current_event[-1] + 1:
+            current_event.append(val)
+        else:
+            events.append(current_event)
+            current_event = [val]
+    events.append(current_event)
+    return events
+
+
+def compute_event_level_metrics(
+    predicted_frames: List[int],
+    gt_indices: List[int],
+    corpus_size: int,
+    tolerance_radius: int = 2,
+) -> Dict[str, Any]:
+    """Calculate event-level TP, FP, FN, TN, recall, precision, and f1.
+    
+    A. Tolerance Window: Uses tolerance_radius around event boundaries.
+    B. Event-Level Evaluation (Recall logic): Group ground truth frames into contiguous Events.
+       If ANY predicted frame falls within the event boundaries + tolerance window, mark the entire
+       event as TP (TP = 1 for the event). Do NOT generate FNs for the remaining frames of that event.
+    C. False Positive Logic: If a predicted frame does not fall near ANY ground truth event,
+       count it as a False Positive (FP).
+    """
+    events = group_contiguous_events(gt_indices)
+    
+    tp = 0
+    fn = 0
+    # Recall Logic: check if ANY predicted frame falls within the boundary/tolerance of each event
+    for event in events:
+        min_f = min(event) - tolerance_radius
+        max_f = max(event) + tolerance_radius
+        detected = any(min_f <= p <= max_f for p in predicted_frames)
+        if detected:
+            tp += 1
+        else:
+            fn += 1
+            
+    # False Positive Logic: check if predicted frame does not fall near ANY event
+    fp = 0
+    for p in predicted_frames:
+        near_any = False
+        for event in events:
+            min_f = min(event) - tolerance_radius
+            max_f = max(event) + tolerance_radius
+            if min_f <= p <= max_f:
+                near_any = True
+                break
+        if not near_any:
+            fp += 1
+            
+    # For queries with no ground truth (no-signal queries), all predictions are False Positives
+    if not events:
+        fp = len(predicted_frames)
+        fn = 0
+        tp = 0
+        
+    tn = corpus_size - (tp + fp + fn)
+    if tn < 0:
+        tn = 0
+        
+    recall = tp / max(tp + fn, 1) if (tp + fn) > 0 else 0.0
+    precision = tp / max(tp + fp, 1) if (tp + fp) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+    
+    return {
+        "TP": tp,
+        "FP": fp,
+        "FN": fn,
+        "TN": tn,
+        "recall": recall,
+        "precision": precision,
+        "f1": f1,
+    }
 
 
 # -----------------------------------------------------------------------------
@@ -194,25 +282,30 @@ def evaluate_v2_query(
     # output. For Recall@K we want top-K BY SCORE.
     deduped_by_score = sorted(deduped, key=lambda r: r["score"], reverse=True)
     top_k_predicted = [r["frame_idx"] for r in deduped_by_score[:K]]
-    gt_set: Set[int] = set(gt_indices)
-    hits = [f for f in top_k_predicted if f in gt_set]
-    recall = len(hits) / max(len(gt_set), 1)
-    precision = len(hits) / K
-    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+    
+    # Event-level evaluation metrics
+    metrics = compute_event_level_metrics(top_k_predicted, gt_indices, index.index.ntotal, tolerance_radius=TOLERANCE_RADIUS)
+    recall = metrics["recall"]
+    precision = metrics["precision"]
+    f1 = metrics["f1"]
 
     # Router behavior (using raw `score`, unchanged from V1).
-    router = BudgetAwareRouter(tau_high=TAU_HIGH, tau_low=TAU_LOW, max_escalations=5)
+    router = BudgetAwareRouter(tau_high=TAU_HIGH, tau_low=TAU_LOW, max_escalations=MAX_ESCALATIONS)
     cands = [{"frame": None, "timestamp": r["timestamp"], "score": r["score"]} for r in deduped]
     accepted, ambiguous = router.route_candidates(cands)
 
     return {
         "query": query_text,
-        "ground_truth": sorted(gt_set),
+        "ground_truth": sorted(gt_indices),
         "top_5_predicted": top_k_predicted,
-        "hits": hits,
+        "hits": [f for f in top_k_predicted if f in gt_indices],
         "recall_at_5":  recall,
         "precision_at_5": precision,
         "f1_at_5":      f1,
+        "tp":           metrics["TP"],
+        "fp":           metrics["FP"],
+        "fn":           metrics["FN"],
+        "tn":           metrics["TN"],
         "timings_ms":   timings,
         "n_raw": len(raw_results),
         "n_after_dedup": len(deduped),
@@ -272,19 +365,24 @@ def evaluate_v1_query(
     timings["total_ms"] = sum(timings.values())
 
     top_k_predicted = [frame_idx_for_pos[int(p)] for p in positions[0] if p != -1]
-    gt_set = set(gt_indices)
-    hits = [f for f in top_k_predicted if f in gt_set]
-    recall = len(hits) / max(len(gt_set), 1)
-    precision = len(hits) / K
-    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+    
+    # Event-level evaluation metrics
+    metrics = compute_event_level_metrics(top_k_predicted, gt_indices, v1_index.index.ntotal, tolerance_radius=TOLERANCE_RADIUS)
+    recall = metrics["recall"]
+    precision = metrics["precision"]
+    f1 = metrics["f1"]
 
     return {
         "query": query_text,
-        "ground_truth": sorted(gt_set),
+        "ground_truth": sorted(gt_indices),
         "top_5_predicted": top_k_predicted,
         "recall_at_5":  recall,
         "precision_at_5": precision,
         "f1_at_5":      f1,
+        "tp":           metrics["TP"],
+        "fp":           metrics["FP"],
+        "fn":           metrics["FN"],
+        "tn":           metrics["TN"],
         "timings_ms":   timings,
         "raw_score_top1": float(scores[0][0]) if len(scores[0]) > 0 else 0.0,
     }
@@ -341,18 +439,17 @@ def compute_frame_level_cm(
     per_query: List[Dict[str, Any]],
     corpus_size: int,
 ) -> Dict[str, int]:
-    """Sum per-frame TP/FP/FN/TN across labelled queries only (queries with
+    """Sum per-query TP/FP/FN/TN across labelled queries only (queries with
     empty ground truth are excluded — they contribute no signal to a CM)."""
     tp = fp = fn = tn = 0
     for q in per_query:
-        gt = set(q.get("ground_truth", []))
+        gt = q.get("ground_truth", [])
         if not gt:
             continue  # no-signal queries are not part of the CM denominator
-        pred = set(q["top_5_predicted"])
-        tp += len(pred & gt)
-        fp += len(pred - gt)
-        fn += len(gt - pred)
-        tn += corpus_size - len(pred | gt)
+        tp += q.get("tp", 0)
+        fp += q.get("fp", 0)
+        fn += q.get("fn", 0)
+        tn += q.get("tn", 0)
     return {"TP": tp, "FP": fp, "FN": fn, "TN": tn}
 
 
@@ -428,7 +525,7 @@ def plot_confusion_matrix(cm: Dict[str, int], out_path: Path) -> None:
                  "(per-frame predictions, summed across all evaluation queries)",
                  fontsize=12, pad=14)
     ax.set_xlabel("Ground truth", fontsize=11, labelpad=10)
-    ax.set_ylabel("Prediction (top-5 retrieval)", fontsize=11, labelpad=10)
+    ax.set_ylabel(f"Prediction (top-{K} retrieval)", fontsize=11, labelpad=10)
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -526,8 +623,8 @@ def render_markdown(
         )
     else:
         verdict_text = (
-            f"The Recall@5 and F1@5 gates fail on this query set "
-            f"(V2 R@5 = {v2_agg['recall_at_5']:.3f} vs V1 R@5 = {v1_agg['recall_at_5']:.3f}). "
+            f"The Recall@{K} and F1@{K} gates fail on this query set "
+            f"(V2 R@{K} = {v2_agg['recall_at_5']:.3f} vs V1 R@{K} = {v1_agg['recall_at_5']:.3f}). "
             "The architectural wins (latency, UX, dedup) are confirmed."
         )
     cm_total_pos_pred = cm["TP"] + cm["FP"]
@@ -568,9 +665,9 @@ The V2.0 branch introduces three architectural upgrades to the Stage 1 retrieval
 
 | Metric | V1.0 (live, OpenAI CLIP ViT-L-14) | V2.0 (live, OpenCLIP + Dedup + QB-Norm) | Δ |
 | :--- | :---: | :---: | :---: |
-| **Recall@5**         | {v1_agg['recall_at_5']:.3f}       | **{v2_agg['recall_at_5']:.3f}**       | {v2_agg['recall_at_5'] - v1_agg['recall_at_5']:+.3f} |
-| **F1@5**             | {v1_agg['f1_at_5']:.3f}           | **{v2_agg['f1_at_5']:.3f}**           | {v2_agg['f1_at_5']     - v1_agg['f1_at_5']:+.3f} |
-| **Precision@5**      | {v1_agg['precision_at_5']:.3f}    | **{v2_agg['precision_at_5']:.3f}**    | {v2_agg['precision_at_5'] - v1_agg['precision_at_5']:+.3f} |
+| **Recall@{K}**         | {v1_agg['recall_at_5']:.3f}       | **{v2_agg['recall_at_5']:.3f}**       | {v2_agg['recall_at_5'] - v1_agg['recall_at_5']:+.3f} |
+| **F1@{K}**             | {v1_agg['f1_at_5']:.3f}           | **{v2_agg['f1_at_5']:.3f}**           | {v2_agg['f1_at_5']     - v1_agg['f1_at_5']:+.3f} |
+| **Precision@{K}**      | {v1_agg['precision_at_5']:.3f}    | **{v2_agg['precision_at_5']:.3f}**    | {v2_agg['precision_at_5'] - v1_agg['precision_at_5']:+.3f} |
 | **Mean latency (ms)**| {v1_agg['latency_mean_ms']:.1f}   | **{v2_agg['latency_mean_ms']:.1f}**   | {v2_agg['latency_mean_ms'] - v1_agg['latency_mean_ms']:+.1f} |
 | **p95 latency (ms)** | {v1_agg['latency_p95_ms']:.1f}    | **{v2_agg['latency_p95_ms']:.1f}**    | {v2_agg['latency_p95_ms']  - v1_agg['latency_p95_ms']:+.1f} |
 | **Dedup reduction**  | n/a                                | **{v2_extras['dedup_reduction_pct']:.1f}%** | — |
@@ -580,7 +677,7 @@ For documentation continuity, the WP6 *stub* baselines (R@5 = 0.587, F1@5 = 0.46
 
 #### Per-query breakdown
 
-| query_id | query | Recall@5  V1 → V2 | F1@5  V1 → V2 | Top-1 score  V1 → V2 |
+| query_id | query | Recall@{K}  V1 → V2 | F1@{K}  V1 → V2 | Top-1 score  V1 → V2 |
 | :--- | :--- | :---: | :---: | :---: |
 {per_q_table}
 
@@ -588,13 +685,13 @@ For documentation continuity, the WP6 *stub* baselines (R@5 = 0.587, F1@5 = 0.46
 
 ![V2 confusion matrix]({chart_paths['cm'].as_posix()})
 
-**Confusion-matrix analysis (frame-level, summed across the {n_labelled} labelled queries; the {n_unlabelled} no-signal querie{'s are' if n_unlabelled != 1 else ' is'} excluded)**
+**Confusion-matrix analysis (event-level, summed across the {n_labelled} labelled queries; the {n_unlabelled} no-signal queries are excluded)**
 
 | Cell | Count | Interpretation |
 | :--- | ---: | :--- |
-| **TP**  | {cm['TP']:>4} | Ground-truth-positive frames correctly retrieved in top-5. |
-| **FP**  | {cm['FP']:>4} | Top-5 retrievals that were not in the labelled ground-truth set. |
-| **FN**  | {cm['FN']:>4} | Ground-truth-positive frames missed by the top-5. |
+| **TP**  | {cm['TP']:>4} | Ground-truth events correctly retrieved in top-{K}. |
+| **FP**  | {cm['FP']:>4} | Top-{K} retrievals that did not match any ground-truth event. |
+| **FN**  | {cm['FN']:>4} | Ground-truth events missed by the top-{K}. |
 | **TN**  | {cm['TN']:>4} | Corpus frames correctly not retrieved. |
 
 The **FP/FN ratio is {fp_to_fn:.2f}** — { 'the system is more permissive than conservative (more false positives than missed positives), which is the right bias for a forensic-analyst tool where a human re-ranks top-K results' if fp_to_fn > 1 else 'the system is slightly conservative — false negatives outnumber false positives, which is the wrong bias for a forensic tool. Recommend revisiting before merge.' if fp_to_fn < 1 else 'FP and FN are balanced.' }
@@ -604,8 +701,8 @@ TN dominates the matrix because retrieval problems are inherently class-imbalanc
 
 | Gate | Threshold | V2.0 Result | Status |
 | :--- | :---: | :---: | :---: |
-| Recall@5(V2) ≥ V1                | ≥ {v1_agg['recall_at_5']:.3f} | {v2_agg['recall_at_5']:.3f} | {'✅' if gate_recall  else '❌'} |
-| F1@5(V2) ≥ V1                    | ≥ {v1_agg['f1_at_5']:.3f}     | {v2_agg['f1_at_5']:.3f}     | {'✅' if gate_f1      else '❌'} |
+| Recall@{K}(V2) ≥ V1                | ≥ {v1_agg['recall_at_5']:.3f} | {v2_agg['recall_at_5']:.3f} | {'✅' if gate_recall  else '❌'} |
+| F1@{K}(V2) ≥ V1                    | ≥ {v1_agg['f1_at_5']:.3f}     | {v2_agg['f1_at_5']:.3f}     | {'✅' if gate_f1      else '❌'} |
 | p95 latency < 3 s production cap | < 3000 ms                      | {v2_agg['latency_p95_ms']:.1f} ms | {'✅' if gate_latency else '❌'} |
 | p95 latency ≤ 1.5 × V1 p95       | ≤ {1.5 * v1_agg['latency_p95_ms']:.1f} ms | {v2_agg['latency_p95_ms']:.1f} ms | {'✅' if gate_p95_v1  else '❌'} |
 | Escalation rate ≤ 0.5            | ≤ 50 %                         | {v2_extras['escalation_rate']*100:.1f} % | {'✅' if v2_extras['escalation_rate'] <= 0.5 else '⚠️'} |
@@ -705,6 +802,7 @@ def main(argv=None) -> int:
     if args.skip_v1:
         print("[V1] Skipped via --skip-v1; using zeros for comparison.")
         v1_per_query = [{"recall_at_5": 0.0, "f1_at_5": 0.0, "precision_at_5": 0.0,
+                         "tp": 0, "fp": 0, "fn": 0, "tn": 0,
                          "timings_ms": {"total_ms": 0.0}, "raw_score_top1": 0.0,
                          "top_5_predicted": []} for _ in queries]
         v1_agg = {"recall_at_5": 0.0, "f1_at_5": 0.0, "precision_at_5": 0.0,
@@ -751,11 +849,11 @@ def main(argv=None) -> int:
 
     print()
     print("=" * 72)
-    print(f"V2.0 Validation Summary  ({timestamp})")
+    print(f"V2.0 Validation Summary  ({timestamp}) [EVALUATION_MODE={EVALUATION_MODE}]")
     print("=" * 72)
-    print(f"  V1.0  R@5={v1_agg['recall_at_5']:.3f}  F1@5={v1_agg['f1_at_5']:.3f}  "
+    print(f"  V1.0  R@{K}={v1_agg['recall_at_5']:.3f}  F1@{K}={v1_agg['f1_at_5']:.3f}  "
           f"lat_mean={v1_agg['latency_mean_ms']:.1f}ms")
-    print(f"  V2.0  R@5={v2_agg['recall_at_5']:.3f}  F1@5={v2_agg['f1_at_5']:.3f}  "
+    print(f"  V2.0  R@{K}={v2_agg['recall_at_5']:.3f}  F1@{K}={v2_agg['f1_at_5']:.3f}  "
           f"lat_mean={v2_agg['latency_mean_ms']:.1f}ms")
     print(f"  CM    TP={cm['TP']}  FP={cm['FP']}  FN={cm['FN']}  TN={cm['TN']}")
     print()

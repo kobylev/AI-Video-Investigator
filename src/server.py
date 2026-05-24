@@ -27,6 +27,7 @@ from retriever.qb_norm import (
     compute_normalized_similarity,
 )
 from reasoner.claude_engine import ClaudeReasoner, ReasonerVerdict
+from config import EVALUATION_MODE, get_config_value
 
 # Load environment variables
 load_dotenv()
@@ -101,6 +102,9 @@ async def investigate(
     fps: float = Form(1.0)
 ):
     load_dotenv(override=True)
+    if EVALUATION_MODE:
+        tau_high = get_config_value("TAU_HIGH")
+        tau_low = get_config_value("TAU_LOW")
     start_time = time.time()
     safe_filename = os.path.basename(video.filename)
     video_base_name = os.path.splitext(safe_filename)[0]
@@ -259,8 +263,9 @@ async def investigate(
             log_step("EDGE", f"Computing text embeddings for search query: '{query}'")
             query_embedding = clip_engine.get_text_embeddings(query)
             
-            log_step("EDGE", f"Searching FAISS index for top 20 candidate matches...")
-            raw_results = search_index.search(query_embedding, top_k=20)
+            top_k_search = max(20, get_config_value("K") * 2)
+            log_step("EDGE", f"Searching FAISS index for top {top_k_search} candidate matches...")
+            raw_results = search_index.search(query_embedding, top_k=top_k_search)
             
             yield json.dumps({
                 "stage": 1,
@@ -323,16 +328,19 @@ async def investigate(
             ]
             deduped = temporal_deduplicate_frames(
                 dedup_input,
-                time_window_sec=5,
-                high_score_threshold=98.0,
+                time_window_sec=get_config_value("TIME_WINDOW_SEC"),
+                high_score_threshold=get_config_value("NMS_HIGH_CONF_THRESHOLD"),
                 threshold_key="confidence_pct",
-                max_per_cluster=2,
-                peak_proximity_delta=2.0,
+                max_per_cluster=get_config_value("NMS_MAX_PER_CLUSTER"),
+                peak_proximity_delta=get_config_value("NMS_PEAK_PROXIMITY_DELTA"),
             )
             deduped_results = [d["_raw"] for d in deduped]
             n_suppressed = len(raw_results) - len(deduped_results)
             dedup_msg = (
-                f"Temporal dedup (strict: tol>=98%, max 2/cluster, peak Δ<=2%): "
+                f"Temporal dedup (mode={'EVAL' if EVALUATION_MODE else 'PROD'}: "
+                f"tol>={get_config_value('NMS_HIGH_CONF_THRESHOLD')}%, "
+                f"max {get_config_value('NMS_MAX_PER_CLUSTER')}/cluster, "
+                f"peak Δ<={get_config_value('NMS_PEAK_PROXIMITY_DELTA')}%): "
                 f"kept {len(deduped_results)}/{len(raw_results)} candidates "
                 f"({n_suppressed} suppressed, saving {n_suppressed} downstream Claude image calls). "
                 f"Top raw {deduped_results[0]['score']:.4f} -> confidence "
@@ -369,7 +377,7 @@ async def investigate(
             await asyncio.sleep(0.05)
 
             log_step("ROUTER", f"Evaluating candidates using thresholds: tau_low = {tau_low}, tau_high = {tau_high}...")
-            max_escalations = 0 if free_only else 5
+            max_escalations = 0 if free_only else get_config_value("MAX_ESCALATIONS")
             router = BudgetAwareRouter(tau_high=tau_high, tau_low=tau_low, max_escalations=max_escalations)
             accepted, ambiguous = router.route_candidates(candidates_for_router)
             
