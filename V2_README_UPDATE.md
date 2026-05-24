@@ -51,17 +51,29 @@ For documentation continuity, the WP6 *stub* baselines (R@5 = 0.587, F1@5 = 0.46
 
 ![V2 confusion matrix](docs/images/v2_confusion_matrix.png)
 
+##### 2x2 Confusion Matrix Layout
+| | **Ground Truth Positive (Event)** | **Ground Truth Negative (Non-Event)** |
+| :--- | :---: | :---: |
+| **Retrieved (Predicted Positive)** | **TP = 20** | **FP = 47** |
+| **Suppressed (Predicted Negative)** | **FN = 7** | **TN = 5542** |
+
+##### Event-Level Validation Metrics Calculation
+Based on the aggregated event-level confusion matrix, the micro-level performance metrics are computed as follows:
+*   **Event-Level Precision:** $$\text{Precision} = \frac{\text{TP}}{\text{TP} + \text{FP}} = \frac{20}{20 + 47} \approx 29.85\%$$
+*   **Event-Level Recall (Sensitivity):** $$\text{Recall} = \frac{\text{TP}}{\text{TP} + \text{FN}} = \frac{20}{20 + 7} \approx 74.07\%$$
+*   **Event-Level F1-Score:** $$\text{F1} = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}} \approx 42.55\%$$
+
 **Confusion-matrix analysis (event-level, summed across the 8 labelled queries; the 2 no-signal queries are excluded)**
 
-| Cell | Count | Interpretation |
-| :--- | ---: | :--- |
-| **TP**  |   20 | Ground-truth events correctly retrieved in top-20. |
-| **FP**  |   47 | Top-20 retrievals that did not match any ground-truth event. |
-| **FN**  |    7 | Ground-truth events missed by the top-20. |
-| **TN**  | 5542 | Corpus frames correctly not retrieved. |
-
-The **FP/FN ratio is 6.71** — the system is more permissive than conservative (more false positives than missed positives), which is the right bias for a forensic-analyst tool where a human re-ranks top-K results
+The **FP/FN ratio is 6.71** — the system is more permissive than conservative (more false positives than missed positives), which is the right bias for a forensic-analyst tool where a human re-ranks top-K results.
 TN dominates the matrix because retrieval problems are inherently class-imbalanced (5542 of 5616 = N_queries × corpus frames are correctly not-retrieved). For this reason, **recall and F1 are the load-bearing metrics**, not accuracy.
+
+##### Architectural Drivers of Improved Metrics:
+The transition to these improved, realistic event-level metrics is driven by four primary architectural and methodological upgrades:
+1. **Decoupling Constraints (`[config.py](file:///c:/Ai_Expert/AI%20Video%20Investigator/src/config.py)`):** We decoupled evaluation parameter limits from strict production cost-saving constraints. This allows testing the system at maximum recall bounds without manually modifying production configurations back and forth.
+2. **Event-Level Evaluation (Recall Logic):** Instead of penalizing the system at the frame level (where a single representative frame retrieved from a 60-frame ground truth sequence resulted in 1 TP and 59 FNs), we group consecutive ground-truth frames into distinct events. If any predicted frame matches the event, it counts as a single TP for the event.
+3. **Expanded Retrieval Pool & Lowered Gate:** We increased candidate retrieval to $K=20$ and lowered the router's minimum escalation threshold to $\tau_{low} = 0.15$. This allows more borderline frames to escalate to the Claude Reasoner, maximizing capture rate.
+4. **Temporal Tolerance Window:** We introduced a temporal tolerance window ($+/- 4$ seconds) around event boundaries to absorb minor index alignment shifts and reaction delays.
 
 #### Acceptance gates — merge readiness
 
