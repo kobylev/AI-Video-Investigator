@@ -4,7 +4,7 @@ import os
 # Global evaluation mode toggle
 # When True: Relaxed parameters to optimize Recall and eliminate False Negatives during evaluation
 # When False: Production parameters optimized for budget and precision (budget-friendly)
-EVALUATION_MODE = os.getenv("EVALUATION_MODE", "True").lower() in ("true", "1", "yes")
+EVALUATION_MODE = os.getenv("EVALUATION_MODE", "False").lower() in ("true", "1", "yes")
 
 # --- Production Constraints (EVALUATION_MODE = False) ---
 PROD_K = 5
